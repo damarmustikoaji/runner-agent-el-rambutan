@@ -22,6 +22,11 @@
       screenW:       1080,
       screenH:       1920,
       isLoading:     false,
+      pkg:           '',       // package name aktif
+      activity:      '',       // activity aktif
+      activities:    [],       // daftar activity dari package
+      orient:        'portrait',
+      noReset:       false,
     },
 
     // ── Runner state

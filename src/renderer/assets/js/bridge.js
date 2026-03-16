@@ -64,6 +64,8 @@
       listPackages: tp ? ipc(tp.inspector.listPackages) : noopArr,
       installApk:   tp ? ipc(tp.inspector.installApk)  : noop,
       getScreenSize:tp ? ipc(tp.inspector.getScreenSize): noop,
+      getActiveApp: tp ? ipc(tp.inspector.getActiveApp) : noop,
+      getActivities:tp ? ipc(tp.inspector.getActivities): noopArr,
     },
 
     // ── Runner

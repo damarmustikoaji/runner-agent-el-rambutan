@@ -213,6 +213,56 @@ class DeviceManager extends EventEmitter {
   }
 
   /**
+   * Dapatkan package dan activity yang sedang aktif di foreground
+   * Cara: dumpsys window → mCurrentFocus / mFocusedApp
+   * Return: { package, activity, full } atau null
+   */
+  async getActiveApp(serial) {
+    try {
+      // Coba Android 10+ via dumpsys activity
+      const { stdout: a } = await adbDevice(
+        serial,
+        ['shell', 'dumpsys', 'activity', 'activities', '|', 'grep', '-E', 'mResumedActivity|mCurrentFocus'],
+        { timeout: 6000 }
+      )
+      let pkg = null, activity = null
+
+      // Pattern: mResumedActivity: ActivityRecord{... pkg/Activity ...}
+      const resumedMatch = a.match(/mResumedActivity[^\n]*?\{[^}]*\s+([\w.]+)\/([\w.]+)/)
+      if (resumedMatch) {
+        pkg      = resumedMatch[1]
+        activity = resumedMatch[2]
+      }
+
+      // Fallback: dumpsys window mCurrentFocus
+      if (!pkg) {
+        const { stdout: w } = await adbDevice(
+          serial,
+          ['shell', 'dumpsys', 'window', 'windows', '|', 'grep', '-E', 'mCurrentFocus|mFocusedApp'],
+          { timeout: 6000 }
+        )
+        const focusMatch = w.match(/(?:mCurrentFocus|mFocusedApp)[^\n]*?\{[^}]*\s+([\w.]+)\/([\w.]+)/)
+        if (focusMatch) { pkg = focusMatch[1]; activity = focusMatch[2] }
+      }
+
+      if (!pkg) return null
+
+      // Normalize activity shorthand: .ActivityName → pkg.ActivityName
+      if (activity && activity.startsWith('.')) activity = pkg + activity
+
+      logger.info(`Active app: ${pkg}/${activity}`)
+      return { package: pkg, activity, full: `${pkg}/${activity}` }
+    } catch (err) {
+      logger.warn('getActiveApp failed:', err.message)
+      return null
+    }
+  }
+
+  /**
+   * Dapatkan daftar activity dari package tertentu
+   * via pm dump packageName
+   */
+  /**
    * Launch app di device
    */
   async launchApp(serial, packageName, activity = '') {
@@ -225,20 +275,66 @@ class DeviceManager extends EventEmitter {
       ['shell', 'am', 'start', '-n', target],
       { timeout: 10000 }
     )
-
-    // Kalau MainActivity tidak ada, coba cari activity utama
     if (exitCode !== 0 || stdout.includes('Error')) {
       const { stdout: intentOut } = await adbDevice(
         serial,
         ['shell', 'cmd', 'package', 'resolve-activity', '--brief', packageName],
         { timeout: 5000 }
-      )
+      ).catch(() => ({ stdout: '' }))
       const resolvedActivity = intentOut.trim().split('\n').pop()
       if (resolvedActivity && resolvedActivity.includes('/')) {
         await adbDevice(serial, ['shell', 'am', 'start', '-n', resolvedActivity])
       }
     }
     logger.info(`Launched: ${packageName} on ${serial}`)
+  }
+
+  /**
+   * Dapatkan package/activity yang sedang aktif (foreground app)
+   */
+  async getActiveApp(serial) {
+    try {
+      // Method 1: dumpsys activity
+      const { stdout: a } = await adbDevice(serial, ['shell', 'dumpsys', 'activity', 'activities'], { timeout: 6000 })
+      const m1 = a.match(/mResumedActivity[^\n]*?\s+([\w.]+)\/([\w.$]+)/)
+      if (m1) {
+        const pkg = m1[1], act = m1[2].startsWith('.') ? m1[1] + m1[2] : m1[2]
+        return { package: pkg, activity: act, full: `${pkg}/${act}` }
+      }
+      // Method 2: dumpsys window
+      const { stdout: w } = await adbDevice(serial, ['shell', 'dumpsys', 'window'], { timeout: 6000 })
+      const m2 = w.match(/mCurrentFocus[^\n]*\s+([\w.]+)\/([\w.$]+)/)
+             || w.match(/mFocusedApp[^\n]*\s+([\w.]+)\/([\w.$]+)/)
+      if (m2) {
+        const pkg = m2[1], act = m2[2].startsWith('.') ? m2[1] + m2[2] : m2[2]
+        return { package: pkg, activity: act, full: `${pkg}/${act}` }
+      }
+      return null
+    } catch (err) {
+      logger.warn('getActiveApp failed:', err.message)
+      return null
+    }
+  }
+
+  /**
+   * Dapatkan daftar activity dari package via pm dump
+   */
+  async getActivities(serial, packageName) {
+    try {
+      const { stdout } = await adbDevice(serial, ['shell', 'pm', 'dump', packageName], { timeout: 8000 })
+      const activities = []
+      const re = /^\s+([A-Za-z0-9_.]+\/[A-Za-z0-9_.]+)/gm
+      let m
+      while ((m = re.exec(stdout)) !== null) {
+        const a = m[1]
+        if (a.includes(packageName.split('.').pop()) && !activities.includes(a)) {
+          activities.push(a)
+        }
+      }
+      return activities.length ? activities.slice(0, 15) : [`${packageName}/.MainActivity`]
+    } catch {
+      return [`${packageName}/.MainActivity`]
+    }
   }
 }
 

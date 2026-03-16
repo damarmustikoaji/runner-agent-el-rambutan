@@ -112,6 +112,14 @@ function registerAllHandlers(win) {
     return getInspector().getScreenSize(serial)
   })
 
+  handle('inspector:getActiveApp', async (_, serial) => {
+    return getDeviceManager().getActiveApp(serial)
+  })
+
+  handle('inspector:getActivities', async (_, serial, packageName) => {
+    return getDeviceManager().getActivities(serial, packageName)
+  })
+
   // ── Runner ─────────────────────────────────────────────────
   handle('runner:run', async (_, config) => {
     const runner = getRunner()

@@ -106,16 +106,51 @@ window.PageInspector = (() => {
               <label class="fl"><i class="bi bi-phone"></i> Device Terhubung</label>
               <div id="device-list">${renderDeviceList()}</div>
             </div>
-            <!-- Extended config -->
+
+            <!-- Package & Activity — always visible, tidak hidden -->
+            <div style="background:var(--surface2);border-radius:7px;padding:8px 10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">
+                  <i class="bi bi-box"></i> Target App
+                </span>
+                <button class="btn btn-xs btn-d" onclick="PageInspector.detectActiveApp()" id="btn-detect-app"
+                  title="Auto-detect app yang sedang berjalan di foreground">
+                  <i class="bi bi-magic"></i> Detect
+                </button>
+              </div>
+              <!-- Package name input + detect -->
+              <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px">
+                <input type="text" id="cfg-pkg" style="flex:1;font-size:11px;font-family:var(--font-mono)"
+                  placeholder="com.example.app"
+                  value="${AppState.inspector.pkg||''}"
+                  oninput="AppState.inspector.pkg=this.value;PageInspector.onPkgChange(this.value)">
+              </div>
+              <!-- Activity row -->
+              <div style="display:flex;gap:5px;align-items:center">
+                <select id="cfg-activity" style="flex:1;font-size:10px;font-family:var(--font-mono)"
+                  onchange="AppState.inspector.activity=this.value">
+                  <option value="">-- Activity (opsional) --</option>
+                  ${(AppState.inspector.activities||[]).map(a=>`
+                    <option value="${esc(a)}" ${AppState.inspector.activity===a?'selected':''}>
+                      ${esc(a.split('/').pop())}
+                    </option>`).join('')}
+                </select>
+                <button class="btn btn-xs btn-d" onclick="PageInspector.loadActivities()" title="Load daftar activity">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+              <!-- Active app info badge -->
+              <div id="active-app-info" style="display:none;margin-top:6px">
+                <div style="background:var(--green-bg);border:1px solid rgba(42,157,92,.2);border-radius:5px;padding:4px 8px;font-size:10px;font-family:var(--font-mono);color:var(--green)">
+                  <i class="bi bi-check-circle-fill"></i> <span id="active-app-text"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Extended config (collapsible) -->
             <div id="insp-ext-cfg" style="display:none">
               <div class="divider" style="margin:6px 0"></div>
               <div class="r2 mb6">
-                <div class="field">
-                  <label class="fl">Package Name</label>
-                  <input type="text" id="cfg-pkg" class="w100" placeholder="com.example.app"
-                    value="${AppState.inspector.pkg||''}"
-                    oninput="AppState.inspector.pkg=this.value">
-                </div>
                 <div class="field">
                   <label class="fl">Orientasi</label>
                   <select class="w100" onchange="AppState.inspector.orient=this.value">
@@ -123,26 +158,26 @@ window.PageInspector = (() => {
                     <option value="landscape">Landscape</option>
                   </select>
                 </div>
+                <div class="field">
+                  <label class="fl">Upload APK</label>
+                  <input type="file" class="w100" accept=".apk" onchange="PageInspector.handleApkUpload(this)">
+                </div>
               </div>
-              <div class="field mb6">
-                <label class="fl"><i class="bi bi-file-earmark-arrow-up"></i> Upload APK</label>
-                <input type="file" class="w100" accept=".apk" onchange="PageInspector.handleApkUpload(this)">
-              </div>
-              <div class="flex g12 wrap">
-                ${[['noReset','No Reset'],['noSign','No Sign'],['autoGrant','Auto Grant Perms']]
+              <div class="flex g12 wrap mb6">
+                ${[['noReset','No Reset'],['noSign','No Sign'],['autoGrant','Auto Grant']]
                   .map(([k,l]) => `<label class="flex ic g5" style="cursor:pointer;font-size:11px">
                     <input type="checkbox" onchange="AppState.inspector.${k}=this.checked" style="accent-color:var(--blue)"> ${l}
                   </label>`).join('')}
               </div>
-              <!-- Package selector -->
-              <div class="field mt6">
-                <label class="fl">Pilih Package Terinstall</label>
+              <!-- Package selector dari list installed -->
+              <div class="field">
+                <label class="fl">Semua Packages Terinstall</label>
                 <select class="w100" id="pkg-select" onchange="PageInspector.selectPackage(this.value)">
                   <option value="">-- Pilih package --</option>
                   ${_packages.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}
                 </select>
                 <button class="btn btn-d btn-xs mt6" onclick="PageInspector.loadPackages()">
-                  <i class="bi bi-arrow-clockwise"></i> Refresh Packages
+                  <i class="bi bi-arrow-clockwise"></i> Load semua packages
                 </button>
               </div>
             </div>
@@ -172,10 +207,7 @@ window.PageInspector = (() => {
               style="position:relative;flex-shrink:0;align-self:center;
                      max-height:280px;max-width:100%;
                      background:#111;border-radius:8px;overflow:hidden;cursor:crosshair;
-                     display:flex;align-items:center;justify-content:center;"
-              onclick="PageInspector.onScreenClick(event)"
-              onmousemove="PageInspector.onScreenHover(event)"
-              onmouseleave="PageInspector.onScreenLeave()">
+                     display:flex;align-items:center;justify-content:center;">
               <div id="screen-placeholder"
                 style="color:var(--text3);font-size:12px;text-align:center;padding:32px 20px;width:200px">
                 <i class="bi bi-phone" style="font-size:2rem;display:block;margin-bottom:8px;opacity:.4"></i>
@@ -187,9 +219,13 @@ window.PageInspector = (() => {
                        width:auto;height:auto;border-radius:6px;
                        user-select:none;-webkit-user-drag:none;"
                 alt="Device screen" draggable="false">
-              <!-- Overlay SAMA PERSIS ukurannya dengan img via JS -->
+              <!--
+                Overlay: pointer-events:auto agar semua interaksi (hover/click)
+                ditangani di sini. Event listener dipasang via JS di _attachScreenEvents().
+                Ini menghindari konflik antara onclick di screen-wrap dan click di hl-box.
+              -->
               <div id="screen-overlay"
-                style="position:absolute;pointer-events:none;top:0;left:0;"></div>
+                style="position:absolute;top:0;left:0;pointer-events:auto;cursor:crosshair;"></div>
             </div>
 
             <!-- Left tabs: XML / Detail / Debug -->
@@ -254,10 +290,24 @@ window.PageInspector = (() => {
           renderHighlights()
         }
       })
-      // Watch screen-wrap agar trigger ketika panel kiri berubah ukuran
       const wrap = document.getElementById('screen-wrap')
       if (wrap) window._inspectorRO.observe(wrap)
     }
+
+    // Attach screen events ke overlay (bukan inline HTML)
+    _attachScreenEvents()
+  }
+
+  function _attachScreenEvents() {
+    const overlay = document.getElementById('screen-overlay')
+    if (!overlay) return
+    // Remove existing listeners dulu (cegah duplicate saat re-render)
+    const newOverlay = overlay.cloneNode(false)
+    overlay.parentNode.replaceChild(newOverlay, overlay)
+    const ov = document.getElementById('screen-overlay')
+    ov.addEventListener('click',     _onScreenClick)
+    ov.addEventListener('mousemove', _onScreenHover)
+    ov.addEventListener('mouseleave', _onScreenLeave)
   }
 
   // ── Device list ────────────────────────────────────────────
@@ -543,10 +593,10 @@ window.PageInspector = (() => {
       return
     }
 
-    const scaleX = _imgW  / _screenW
-    const scaleY = _imgH  / _screenH
+    const scaleX = _imgW / _screenW
+    const scaleY = _imgH / _screenH
 
-    overlay.style.pointerEvents = 'auto'
+    // Hapus boxes lama, biarkan overlay-level listeners tetap terpasang
     overlay.innerHTML = ''
 
     _elements.forEach(el => {
@@ -555,61 +605,41 @@ window.PageInspector = (() => {
       if (width < 2 || height < 2) return
 
       const isSelected = _selectedEl?.id === el.id
-      const isHovered  = _hoveredId      === el.id
+      const isHovered  = _hoveredId === el.id
 
       const box        = document.createElement('div')
-      box.className    = 'hl-box'
+      box.className    = 'hl-box' + (isSelected ? ' selected' : isHovered ? ' hovered' : '')
       box.id           = `hl-${el.id}`
-      box.style.left   = Math.round(x * scaleX)      + 'px'
-      box.style.top    = Math.round(y * scaleY)       + 'px'
-      box.style.width  = Math.round(width  * scaleX) + 'px'
-      box.style.height = Math.round(height * scaleY) + 'px'
-      box.style.pointerEvents = 'auto'
       box.dataset.elId = el.id
+      // pointer-events:none agar semua event naik ke overlay parent
+      box.style.cssText = `
+        position:absolute;
+        left:${Math.round(x * scaleX)}px;
+        top:${Math.round(y * scaleY)}px;
+        width:${Math.round(width  * scaleX)}px;
+        height:${Math.round(height * scaleY)}px;
+        pointer-events:none;`
 
-      if (isSelected) {
-        box.classList.add('selected')
-        // Label kecil di pojok kiri atas box selected
-        const label = document.createElement('div')
+      // Label untuk selected
+      if (isSelected || isHovered) {
         const shortClass = (el.class || '').split('.').pop()
-        const labelText  = el.resourceId
-          ? el.resourceId.split('/').pop()  // ambil bagian setelah ":"
-          : el.text || shortClass || ''
-        label.textContent = labelText.substring(0, 24)
-        label.style.cssText = `
-          position:absolute; top:-18px; left:0;
-          background:rgba(229,77,46,.9); color:#fff;
-          font-size:9px; font-family:monospace;
-          padding:1px 5px; border-radius:3px;
-          white-space:nowrap; pointer-events:none;
-          max-width:140px; overflow:hidden; text-overflow:ellipsis;
-          z-index:11; line-height:16px;`
-        box.appendChild(label)
-      } else if (isHovered) {
-        box.classList.add('hovered')
-        // Label tipis saat hover
-        const label = document.createElement('div')
-        const shortClass = (el.class || '').split('.').pop()
-        const labelText  = el.text || el.resourceId?.split('/').pop() || shortClass || ''
-        label.textContent = labelText.substring(0, 24)
-        label.style.cssText = `
-          position:absolute; top:-16px; left:0;
-          background:rgba(42,157,92,.85); color:#fff;
-          font-size:9px; font-family:monospace;
-          padding:1px 5px; border-radius:3px;
-          white-space:nowrap; pointer-events:none;
-          max-width:120px; overflow:hidden; text-overflow:ellipsis;
-          z-index:6; line-height:15px;`
-        box.appendChild(label)
+        const labelText  = (el.resourceId ? el.resourceId.split('/').pop() : null)
+                        || el.text?.substring(0, 20)
+                        || shortClass || ''
+        if (labelText) {
+          const label = document.createElement('div')
+          label.textContent = labelText
+          label.style.cssText = `
+            position:absolute; bottom:100%; left:0; margin-bottom:2px;
+            background:${isSelected ? 'rgba(229,77,46,.92)' : 'rgba(42,157,92,.88)'};
+            color:#fff; font-size:9px; font-family:monospace;
+            padding:1px 6px; border-radius:3px;
+            white-space:nowrap; pointer-events:none;
+            max-width:160px; overflow:hidden; text-overflow:ellipsis;
+            line-height:16px; z-index:11;`
+          box.appendChild(label)
+        }
       }
-      // else: box transparan — hanya ada sebagai hit area untuk hover/click
-
-      box.addEventListener('mouseenter', () => hoverElement(el.id))
-      box.addEventListener('mouseleave', () => unhoverElement())
-      box.addEventListener('click', (e) => {
-        e.stopPropagation()
-        selectElement(el.id)
-      })
 
       overlay.appendChild(box)
     })
@@ -621,74 +651,72 @@ window.PageInspector = (() => {
   }
 
   // ── Screen interaction ─────────────────────────────────────
-  function onScreenClick(event) {
-    const img = document.getElementById('screen-img')
-    if (!img || img.style.display === 'none') return
+  // Semua event dipasang ke overlay via _attachScreenEvents()
+  // Overlay = layer transparan tepat di atas gambar
 
-    const rect = img.getBoundingClientRect()
-
-    // Pastikan klik dalam batas gambar
-    if (event.clientX < rect.left || event.clientX > rect.right) return
-    if (event.clientY < rect.top  || event.clientY > rect.bottom) return
-
-    // Koordinat relatif terhadap gambar (bukan container)
+  function _getDeviceCoords(event) {
+    if (!_imgW || !_imgH) return null
+    const overlay = document.getElementById('screen-overlay')
+    if (!overlay) return null
+    // getBoundingClientRect lebih reliable karena offsetX berubah saat
+    // event.target adalah child element (hl-box)
+    const rect = overlay.getBoundingClientRect()
     const relX = event.clientX - rect.left
     const relY = event.clientY - rect.top
+    if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) return null
+    return {
+      devX: Math.round(relX * _screenW / rect.width),
+      devY: Math.round(relY * _screenH / rect.height),
+      relX, relY
+    }
+  }
 
-    // Scale ke koordinat device
-    const devX = Math.round(relX * _screenW / rect.width)
-    const devY = Math.round(relY * _screenH / rect.height)
+  function _onScreenClick(event) {
+    const coords = _getDeviceCoords(event)
+    if (!coords) return
+    const { devX, devY, relX, relY } = coords
 
     const found = findElementAtCoords(devX, devY)
     if (found) {
       selectElement(found.id)
-      addDebugLog('info', `Click @ (${devX},${devY}) → ${found.resourceId || found.text || found.class}`)
+      addDebugLog('info', `✓ Click (${devX},${devY}) → ${found.resourceId || found.text || found.class}`)
+    } else {
+      // Deselect jika klik di area kosong
+      _selectedEl = null
+      updateHighlightStates()
+      addDebugLog('info', `Click (${devX},${devY}) → tidak ada element`)
     }
 
-    // Ripple relatif terhadap screen-wrap
     const wrap = document.getElementById('screen-wrap')
-    if (wrap) {
-      const wrapRect = wrap.getBoundingClientRect()
-      showTapRipple(
-        event.clientX - wrapRect.left,
-        event.clientY - wrapRect.top,
-        wrap
-      )
-    }
+    if (wrap) showTapRipple(relX, relY, wrap)
   }
 
-  function onScreenHover(event) {
-    const img = document.getElementById('screen-img')
-    if (!img || img.style.display === 'none') return
-
-    const rect = img.getBoundingClientRect()
-
-    // Hanya proses jika mouse di atas gambar
-    if (event.clientX < rect.left || event.clientX > rect.right) return
-    if (event.clientY < rect.top  || event.clientY > rect.bottom) return
-
-    const relX = event.clientX - rect.left
-    const relY = event.clientY - rect.top
-    const devX = Math.round(relX * _screenW / rect.width)
-    const devY = Math.round(relY * _screenH / rect.height)
-
+  function _onScreenHover(event) {
+    const coords = _getDeviceCoords(event)
+    if (!coords) {
+      if (_hoveredId) { _hoveredId = null; updateHighlightStates(); updateTreeHover(null) }
+      return
+    }
+    const { devX, devY } = coords
     const found = findElementAtCoords(devX, devY)
-    if (found && found.id !== _hoveredId) {
-      _hoveredId = found.id
+    const newId = found?.id || null
+    if (newId !== _hoveredId) {
+      _hoveredId = newId
       updateHighlightStates()
-      updateTreeHover(found.id)
-    } else if (!found && _hoveredId) {
-      _hoveredId = null
-      updateHighlightStates()
-      updateTreeHover(null)
+      updateTreeHover(newId)
     }
   }
 
-  function onScreenLeave() {
+  function _onScreenLeave() {
     _hoveredId = null
     updateHighlightStates()
     updateTreeHover(null)
   }
+
+  // Backward compat stubs (tidak dipakai lagi)
+  function onScreenClick(e)  { _onScreenClick(e) }
+  function onScreenHover(e)  { _onScreenHover(e) }
+  function onScreenLeave()   { _onScreenLeave()  }
 
   function findElementAtCoords(x, y) {
     // Cari element terkecil yang mengandung koordinat (paling spesifik)
@@ -926,6 +954,89 @@ window.PageInspector = (() => {
     }
   }
 
+  /**
+   * Auto-detect foreground app dari device
+   */
+  async function detectActiveApp() {
+    if (!_serial) { toast('⚠️ Pilih device dulu', 'error'); return }
+    const btn = document.getElementById('btn-detect-app')
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i>' }
+
+    try {
+      addDebugLog('cmd', `dumpsys activity → detect foreground app`)
+      const result = await window.api.inspector.getActiveApp(_serial)
+      if (!result) {
+        toast('Tidak berhasil detect app. Pastikan app sedang terbuka.', 'error')
+        addDebugLog('warn', 'getActiveApp: tidak ada hasil')
+        return
+      }
+
+      // Update state
+      AppState.inspector.pkg      = result.package
+      AppState.inspector.activity = result.activity
+      if (!AppState.inspector.activities) AppState.inspector.activities = []
+
+      // Update UI
+      const pkgInput = document.getElementById('cfg-pkg')
+      if (pkgInput) pkgInput.value = result.package
+
+      // Show badge
+      const badge = document.getElementById('active-app-info')
+      const badgeText = document.getElementById('active-app-text')
+      if (badge && badgeText) {
+        badgeText.textContent = `${result.package} / ${result.activity?.split('.').pop() || result.activity}`
+        badge.style.display = 'block'
+      }
+
+      addDebugLog('pass', `Detected: ${result.package} / ${result.activity}`)
+      toast(`✅ ${result.package}`)
+
+      // Auto-load activities
+      await loadActivities()
+    } catch (err) {
+      toast(`Detect gagal: ${err.message}`, 'error')
+      addDebugLog('fail', `detectActiveApp error: ${err.message}`)
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-magic"></i> Detect' }
+    }
+  }
+
+  /**
+   * Load activity list untuk package aktif
+   */
+  async function loadActivities() {
+    const pkg = AppState.inspector?.pkg || document.getElementById('cfg-pkg')?.value
+    if (!pkg || !_serial) return
+    try {
+      const activities = await window.api.inspector.getActivities(_serial, pkg)
+      AppState.inspector.activities = activities
+
+      const sel = document.getElementById('cfg-activity')
+      if (sel) {
+        sel.innerHTML = `<option value="">-- Activity (opsional) --</option>
+          ${activities.map(a => {
+            const label = a.split('/').pop()
+            const isActive = a === AppState.inspector.activity || a.endsWith(AppState.inspector.activity || '')
+            return `<option value="${esc(a)}" ${isActive ? 'selected' : ''}>${esc(label)}</option>`
+          }).join('')}`
+      }
+      addDebugLog('pass', `Activities: ${activities.length} untuk ${pkg}`)
+    } catch (err) {
+      addDebugLog('warn', `loadActivities: ${err.message}`)
+    }
+  }
+
+  function onPkgChange(val) {
+    AppState.inspector.pkg = val
+    // Clear activities saat package berubah
+    AppState.inspector.activities = []
+    AppState.inspector.activity = ''
+    const sel = document.getElementById('cfg-activity')
+    if (sel) sel.innerHTML = '<option value="">-- Activity (opsional) --</option>'
+    const badge = document.getElementById('active-app-info')
+    if (badge) badge.style.display = 'none'
+  }
+
   function selectPackage(pkg) {
     if (!pkg) return
     const input = document.getElementById('cfg-pkg')
@@ -1140,5 +1251,6 @@ window.PageInspector = (() => {
     switchLeftTab, switchEditorTab, exportDSL, saveToTC,
     runSteps, selectElement, hoverElement, unhoverElement,
     onScreenClick, onScreenHover, onScreenLeave,
+    detectActiveApp, loadActivities, onPkgChange,
   }
 })()
