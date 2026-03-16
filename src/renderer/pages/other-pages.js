@@ -1,167 +1,510 @@
 /* pages/projects.js */
 window.PageProjects = (() => {
   'use strict'
-  let _proj = null, _suite = null, _section = null
 
+  let _proj    = null
+  let _suite   = null
+  let _section = null
+
+  // ── Render ─────────────────────────────────────────────────
   async function render() {
-    const content = document.getElementById('content-area')
-    const ta      = document.getElementById('topbar-actions')
-    ta.innerHTML  = `<button class="btn btn-p btn-sm" onclick="PageProjects.newProject()"><i class="bi bi-plus-lg"></i> Project Baru</button>`
+    const content  = document.getElementById('content-area')
+    const ta       = document.getElementById('topbar-actions')
+    ta.innerHTML   = `<button class="btn btn-p btn-sm" onclick="PageProjects.showModal('project')">
+      <i class="bi bi-plus-lg"></i> Project Baru</button>`
 
     const projects = await window.api.db.getProjects()
     AppState.cache.projects = projects
-    document.getElementById('badge-projects').textContent = projects.length
+    const badge = document.getElementById('badge-projects')
+    if (badge) badge.textContent = projects.length
     if (!_proj && projects.length) _proj = projects[0]
 
-    const suites   = _proj ? await window.api.db.getSuites(_proj.id) : []
+    const suites   = _proj   ? await window.api.db.getSuites(_proj.id)     : []
     if (!_suite && suites.length) _suite = suites[0]
-    const sections = _suite ? await window.api.db.getSections(_suite.id) : []
+    const sections = _suite  ? await window.api.db.getSections(_suite.id)  : []
     if (!_section && sections.length) _section = sections[0]
     const tcs      = _section ? await window.api.db.getTestCases(_section.id) : []
 
     content.innerHTML = `
-    <div class="flex g10" style="height:calc(100vh - var(--tb-h) - 28px);min-height:0">
-      <!-- Projects -->
-      <div style="width:178px;flex-shrink:0;display:flex;flex-direction:column;gap:5px;overflow-y:auto">
-        <div class="slbl">Projects</div>
-        ${projects.map(p => `
-          <div style="padding:10px 11px;border-radius:9px;border:1.5px solid ${p.id===_proj?.id?'var(--blue)':'var(--border)'};background:${p.id===_proj?.id?'var(--blue-bg)':'var(--surface)'};cursor:pointer;transition:all .12s"
-            onclick="PageProjects.selectProject('${esc(p.id)}')">
-            <div class="flex ic g6 mb4">
-              <div style="width:7px;height:7px;border-radius:50%;background:${esc(p.color||'#888')};flex-shrink:0"></div>
-              <div class="fw6 sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(p.name)}</div>
-            </div>
-            <div class="flex ic g4"><span class="badge b-${esc(p.platform)}">${esc(p.platform)}</span></div>
-          </div>`).join('')}
-        <button class="btn btn-gh btn-sm" onclick="PageProjects.newProject()" style="border:1px dashed var(--border2)"><i class="bi bi-plus-lg"></i> Baru</button>
+    <div style="display:flex;height:calc(100vh - var(--tb-h));min-height:0;overflow:hidden">
+
+      <!-- Col 1: Projects -->
+      <div style="width:200px;flex-shrink:0;border-right:1px solid var(--border);
+        display:flex;flex-direction:column;background:var(--surface);overflow:hidden">
+        <div style="padding:10px 12px 6px;display:flex;align-items:center;justify-content:space-between;
+          border-bottom:1px solid var(--border)">
+          <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Projects</span>
+          <button class="btn btn-xs btn-d" onclick="PageProjects.showModal('project')" title="Project baru">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:6px">
+          ${projects.length ? projects.map(p => `
+            <div onclick="PageProjects.selectProject('${esc(p.id)}')"
+              style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+                cursor:pointer;margin-bottom:2px;transition:all .1s;
+                ${p.id===_proj?.id ? 'background:var(--blue-bg);border:1px solid var(--blue-border)' :
+                  'background:transparent;border:1px solid transparent'}">
+              <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+                background:${esc(p.color||'#3b7eed')}"></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;
+                  white-space:nowrap;color:${p.id===_proj?.id?'var(--blue)':'var(--text)'}">${esc(p.name)}</div>
+                <div style="font-size:10px;color:var(--text3)">${esc(p.platform||'android')}</div>
+              </div>
+              <button onclick="event.stopPropagation();PageProjects.deleteProject('${esc(p.id)}')"
+                style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;
+                  padding:2px;border-radius:3px;opacity:0;transition:.1s"
+                class="proj-del-btn" title="Hapus">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </div>`).join('') :
+            `<div style="text-align:center;padding:24px 12px;color:var(--text3)">
+              <i class="bi bi-folder-plus" style="font-size:1.8rem;display:block;margin-bottom:8px;opacity:.4"></i>
+              <div style="font-size:11px">Belum ada project</div>
+              <button class="btn btn-d btn-sm" style="margin-top:8px"
+                onclick="PageProjects.showModal('project')">
+                <i class="bi bi-plus-lg"></i> Buat Project
+              </button>
+            </div>`}
+        </div>
       </div>
 
-      <!-- Suite tree -->
-      <div style="width:238px;flex-shrink:0;display:flex;flex-direction:column;min-height:0">
-        <div class="flex ic jb mb6"><div class="slbl" style="margin:0">${esc(_proj?.name||'–')} — Suites</div>
-          <button class="btn btn-xs btn-d" onclick="PageProjects.newSuite()"><i class="bi bi-plus-lg"></i></button>
+      <!-- Col 2: Suites + Sections -->
+      <div style="width:220px;flex-shrink:0;border-right:1px solid var(--border);
+        display:flex;flex-direction:column;background:var(--surface);overflow:hidden">
+        <div style="padding:10px 12px 6px;display:flex;align-items:center;justify-content:space-between;
+          border-bottom:1px solid var(--border)">
+          <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+            letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px"
+            title="${esc(_proj?.name||'')}">
+            ${_proj ? esc(_proj.name) : '—'}
+          </span>
+          ${_proj ? `<button class="btn btn-xs btn-d" onclick="PageProjects.showModal('suite')" title="Suite baru">
+            <i class="bi bi-plus-lg"></i>
+          </button>` : ''}
         </div>
-        <div style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)">
-          ${suites.map(suite => `
+        <div style="flex:1;overflow-y:auto">
+          ${suites.length ? suites.map(suite => `
+            <div>
+              <!-- Suite header -->
+              <div onclick="PageProjects.selectSuite('${esc(suite.id)}')"
+                style="display:flex;align-items:center;gap:7px;padding:8px 12px;
+                  background:${_suite?.id===suite.id?'var(--surface2)':'transparent'};
+                  border-bottom:1px solid var(--border);cursor:pointer;
+                  border-left:3px solid ${_suite?.id===suite.id?'var(--yellow)':'transparent'}">
+                <i class="bi bi-folder-fill" style="color:var(--yellow);font-size:13px;flex-shrink:0"></i>
+                <span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;
+                  text-overflow:ellipsis;white-space:nowrap">${esc(suite.name)}</span>
+                <button onclick="event.stopPropagation();PageProjects.showModal('section','${esc(suite.id)}')"
+                  class="btn btn-xs btn-gh" title="Section baru" style="flex-shrink:0">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+              <!-- Sections di bawah suite ini -->
+              ${_suite?.id===suite.id ? sections.map(sec => `
+                <div onclick="PageProjects.selectSection('${esc(sec.id)}')"
+                  style="display:flex;align-items:center;gap:7px;padding:6px 12px 6px 28px;
+                    cursor:pointer;border-bottom:1px solid var(--border);font-size:11px;
+                    background:${_section?.id===sec.id?'var(--blue-bg)':'transparent'};
+                    border-left:3px solid ${_section?.id===sec.id?'var(--blue)':'transparent'}">
+                  <i class="bi bi-folder2" style="color:var(--text3);font-size:11px;flex-shrink:0"></i>
+                  <span style="flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;
+                    white-space:nowrap;color:${_section?.id===sec.id?'var(--blue)':'var(--text2)'}">${esc(sec.name)}</span>
+                  <button onclick="event.stopPropagation();PageProjects.deleteSection('${esc(sec.id)}')"
+                    style="background:none;border:none;cursor:pointer;color:var(--text3);
+                      font-size:10px;padding:1px;opacity:.5" title="Hapus">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>`).join('') : ''}
+            </div>`).join('') :
+            `<div style="text-align:center;padding:24px 12px;color:var(--text3)">
+              <i class="bi bi-folder-x" style="font-size:1.6rem;display:block;margin-bottom:8px;opacity:.4"></i>
+              <div style="font-size:11px">${_proj ? 'Belum ada suite' : 'Pilih project dulu'}</div>
+              ${_proj ? `<button class="btn btn-d btn-sm" style="margin-top:8px"
+                onclick="PageProjects.showModal('suite')">
+                <i class="bi bi-plus-lg"></i> Buat Suite
+              </button>` : ''}
+            </div>`}
+        </div>
+      </div>
+
+      <!-- Col 3: Test Cases -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);
+          display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
           <div>
-            <div style="display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--surface2);border-bottom:1px solid var(--border);font-weight:700;font-size:11px;cursor:pointer"
-              onclick="PageProjects.selectSuite('${esc(suite.id)}')">
-              <i class="bi bi-folder-fill" style="color:var(--yellow)"></i>
-              <span style="flex:1">${esc(suite.name)}</span>
-              <button class="btn btn-xs btn-gh" onclick="event.stopPropagation();PageProjects.newSection('${esc(suite.id)}')"><i class="bi bi-plus-lg"></i></button>
-            </div>
-            ${_suite?.id===suite.id ? sections.map(sec => `
-              <div style="display:flex;align-items:center;gap:7px;padding:6px 10px 6px 20px;${_section?.id===sec.id?'background:var(--blue-bg);':''}border-bottom:1px solid var(--border);font-size:11px;cursor:pointer;font-weight:600;color:var(--text2)"
-                onclick="PageProjects.selectSection('${esc(sec.id)}')">
-                <i class="bi bi-folder2" style="font-size:11px"></i>
-                <span style="flex:1">${esc(sec.name)}</span>
-                <span class="xs muted">0</span>
-              </div>`).join('') : ''}
-          </div>`).join('') ||
-          `<div class="empty-s" style="padding:16px"><div class="ei"><i class="bi bi-folder-x"></i></div><p>Klik + untuk suite</p></div>`}
-        </div>
-      </div>
-
-      <!-- TC list -->
-      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
-        <div class="flex ic jb mb8">
-          <div><b class="fw7">${esc(_section?.name||'Pilih section')}</b>
-            ${_section ? `<span class="tag">${tcs.length} TC</span>` : ''}</div>
-          <div class="flex g6">
+            <span style="font-size:13px;font-weight:700">
+              ${_section ? esc(_section.name) : 'Pilih Section'}
+            </span>
+            ${_section ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">${tcs.length} test case</span>` : ''}
+          </div>
+          <div style="display:flex;gap:6px">
             ${_section ? `
-              <button class="btn btn-d btn-sm" onclick="PageProjects.newTC()"><i class="bi bi-plus-lg"></i> Test Case</button>
-              <button class="btn btn-g btn-sm" onclick="toast('▶ Run section segera tersedia')"><i class="bi bi-play-fill"></i> Run</button>` : ''}
+              <button class="btn btn-d btn-sm" onclick="PageProjects.showModal('tc')">
+                <i class="bi bi-plus-lg"></i> Test Case
+              </button>` : ''}
           </div>
         </div>
-        ${_section ? `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="display:grid;grid-template-columns:26px 1fr 90px 50px 130px;padding:7px 12px;background:var(--surface2);border-bottom:1px solid var(--border)">
-            ${['#','Test Case','Status','Steps','Aksi'].map(h=>`<div class="xs muted fw6">${h}</div>`).join('')}
-          </div>
-          ${tcs.map((tc,i) => `
-          <div style="display:grid;grid-template-columns:26px 1fr 90px 50px 130px;padding:8px 12px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:background .1s"
-            onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''">
-            <div class="xs mono muted">${i+1}</div>
-            <div><div class="sm fw6">${esc(tc.name)}</div>
-              <div class="flex g3 mt4">${(tc.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
-            </div>
-            <div><span class="badge b-${esc(tc.status)}">${esc(tc.status)}</span></div>
-            <div class="xs muted">${tc.steps_count||'–'}</div>
-            <div class="flex g4">
-              <button class="btn btn-xs btn-d" onclick="PageProjects.editTC('${esc(tc.id)}')"><i class="bi bi-pencil"></i> Edit</button>
-              <button class="btn btn-xs btn-g" onclick="toast('▶ ${esc(tc.name)}')"><i class="bi bi-play-fill"></i></button>
-              <button class="btn btn-xs btn-gh" style="color:var(--red)" onclick="PageProjects.deleteTC('${esc(tc.id)}')"><i class="bi bi-trash3"></i></button>
-            </div>
-          </div>`).join('') ||
-          `<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">Belum ada TC. Klik + Test Case.</div>`}
-        </div>` :
-        `<div class="empty-s"><div class="ei"><i class="bi bi-arrow-left-circle"></i></div><h3>Pilih Section</h3><p>Pilih section dari tree di kiri.</p></div>`}
+
+        <div style="flex:1;overflow-y:auto;padding:12px 16px">
+          ${_section ? (tcs.length ? `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+              <!-- Header -->
+              <div style="display:grid;grid-template-columns:32px 1fr 100px 80px;
+                padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border)">
+                ${['#','Test Case','Status','Aksi'].map(h=>`<div style="font-size:10px;font-weight:600;color:var(--text3)">${h}</div>`).join('')}
+              </div>
+              ${tcs.map((tc, i) => `
+                <div style="display:grid;grid-template-columns:32px 1fr 100px 80px;
+                  padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;
+                  transition:background .1s" class="tc-row">
+                  <div style="font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(tc.name)}</div>
+                    ${tc.description ? `<div style="font-size:10px;color:var(--text3)">${esc(tc.description)}</div>` : ''}
+                  </div>
+                  <div>
+                    <span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;
+                      ${tc.status==='pass' ? 'background:#dcfce7;color:#16a34a' :
+                        tc.status==='fail' ? 'background:#fee2e2;color:#dc2626' :
+                        'background:var(--surface2);color:var(--text3)'}">
+                      ${tc.status||'pending'}
+                    </span>
+                  </div>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-xs btn-d" onclick="PageProjects.openInInspector('${esc(tc.id)}')"
+                      title="Buka di Inspector">
+                      <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-xs btn-danger" onclick="PageProjects.deleteTC('${esc(tc.id)}')"
+                      title="Hapus">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </div>
+                </div>`).join('')}
+            </div>` :
+            `<div style="text-align:center;padding:40px 20px;color:var(--text3)">
+              <i class="bi bi-file-earmark-x" style="font-size:2rem;display:block;margin-bottom:10px;opacity:.4"></i>
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">Belum ada test case</div>
+              <div style="font-size:11px;margin-bottom:16px">Tambahkan test case pertama di section ini</div>
+              <button class="btn btn-p btn-sm" onclick="PageProjects.showModal('tc')">
+                <i class="bi bi-plus-lg"></i> Test Case Baru
+              </button>
+            </div>`) :
+            `<div style="text-align:center;padding:60px 20px;color:var(--text3)">
+              <i class="bi bi-arrow-left-circle" style="font-size:2rem;display:block;margin-bottom:10px;opacity:.4"></i>
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">Pilih Section</div>
+              <div style="font-size:11px">Pilih section dari tree di kiri</div>
+            </div>`}
+        </div>
       </div>
+    </div>
+
+    <!-- Modal overlay -->
+    <div id="proj-modal-overlay" style="display:none;position:fixed;inset:0;
+      background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
     </div>`
+
+    // Add hover effect for project delete buttons
+    document.querySelectorAll('.proj-del-btn').forEach(btn => {
+      const row = btn.closest('div[onclick]')
+      if (row) {
+        row.addEventListener('mouseenter', () => btn.style.opacity = '1')
+        row.addEventListener('mouseleave', () => btn.style.opacity = '0')
+      }
+    })
+    // TC row hover
+    document.querySelectorAll('.tc-row').forEach(row => {
+      row.addEventListener('mouseenter', () => row.style.background = 'var(--surface2)')
+      row.addEventListener('mouseleave', () => row.style.background = '')
+    })
   }
 
+  // ── Modal ──────────────────────────────────────────────────
+  function showModal(type, parentId) {
+    const overlay = document.getElementById('proj-modal-overlay')
+    if (!overlay) return
+    overlay.style.display = 'flex'
+
+    const configs = {
+      project: {
+        title: 'Project Baru',
+        icon:  'bi-folder-plus',
+        fields: [
+          { id:'m-name',     label:'Nama Project',      type:'text',   ph:'Misal: Login Flow, Checkout...' },
+          { id:'m-platform', label:'Platform',           type:'select', opts:['android','ios','web'], val:'android' },
+          { id:'m-color',    label:'Warna Label',        type:'color',  val:'#3b7eed' },
+          { id:'m-desc',     label:'Deskripsi (opsional)', type:'text', ph:'Deskripsi singkat project...' },
+        ],
+        onSave: async (vals) => {
+          const p = await window.api.db.saveProject({
+            name:     vals['m-name'],
+            platform: vals['m-platform'],
+            color:    vals['m-color'],
+            description: vals['m-desc'],
+          })
+          _proj = p; render(); toast(`✅ Project "${p.name}" dibuat`)
+        }
+      },
+      suite: {
+        title: 'Suite Baru',
+        icon:  'bi-folder-fill',
+        fields: [
+          { id:'m-name', label:'Nama Suite', type:'text', ph:'Misal: Smoke Test, Regression...' },
+          { id:'m-desc', label:'Deskripsi',  type:'text', ph:'Opsional...' },
+        ],
+        onSave: async (vals) => {
+          if (!_proj) { toast('Pilih project dulu', 'error'); return }
+          const s = await window.api.db.saveSuite({
+            project_id: _proj.id,
+            name: vals['m-name'],
+            description: vals['m-desc'],
+          })
+          _suite = s; render(); toast(`✅ Suite "${s.name}" dibuat`)
+        }
+      },
+      section: {
+        title: 'Section Baru',
+        icon:  'bi-folder2',
+        fields: [
+          { id:'m-name', label:'Nama Section', type:'text', ph:'Misal: Login, Checkout, Profile...' },
+        ],
+        onSave: async (vals) => {
+          const sid = parentId || _suite?.id
+          if (!sid) { toast('Pilih suite dulu', 'error'); return }
+          const sec = await window.api.db.saveSection({
+            suite_id: sid,
+            name: vals['m-name'],
+          })
+          _section = sec; render(); toast(`✅ Section "${sec.name}" dibuat`)
+        }
+      },
+      tc: {
+        title: 'Test Case Baru',
+        icon:  'bi-file-earmark-plus',
+        fields: [
+          { id:'m-name', label:'Nama Test Case', type:'text',     ph:'Misal: Login dengan email valid' },
+          { id:'m-desc', label:'Deskripsi',       type:'textarea', ph:'Langkah-langkah atau tujuan test case...' },
+          { id:'m-prio', label:'Prioritas',       type:'select',  opts:['high','medium','low'], val:'medium' },
+        ],
+        onSave: async (vals) => {
+          if (!_section) { toast('Pilih section dulu', 'error'); return }
+          await window.api.db.saveTestCase({
+            section_id:  _section.id,
+            name:        vals['m-name'],
+            description: vals['m-desc'],
+            priority:    vals['m-prio'],
+            status:      'pending',
+          })
+          render(); toast('✅ Test case dibuat')
+        }
+      }
+    }
+
+    const cfg = configs[type]
+    if (!cfg) return
+
+    overlay.style.display = 'flex'
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border-radius:14px;padding:24px;width:420px;max-width:90vw;
+        box-shadow:var(--sh3);border:1px solid var(--border)">
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <div style="width:36px;height:36px;background:var(--blue-bg);border-radius:9px;
+            display:flex;align-items:center;justify-content:center;color:var(--blue)">
+            <i class="bi ${cfg.icon}" style="font-size:17px"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:700">${cfg.title}</div>
+          </div>
+          <button onclick="PageProjects.closeModal()"
+            style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);
+              border-radius:6px;padding:2px 6px">✕</button>
+        </div>
+        <!-- Fields -->
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
+          ${cfg.fields.map(f => `
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">
+                ${esc(f.label)}
+              </label>
+              ${f.type === 'select' ? `
+                <select id="${f.id}" style="width:100%">
+                  ${(f.opts||[]).map(o => `<option value="${o}" ${o===f.val?'selected':''}>${o}</option>`).join('')}
+                </select>` :
+              f.type === 'color' ? `
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input type="color" id="${f.id}" value="${f.val||'#3b7eed'}"
+                    style="width:40px;height:32px;border:1px solid var(--border);border-radius:6px;
+                      cursor:pointer;padding:2px">
+                  <span id="${f.id}-label" style="font-size:11px;color:var(--text3)">${f.val||'#3b7eed'}</span>
+                </div>` :
+              f.type === 'textarea' ? `
+                <textarea id="${f.id}" placeholder="${esc(f.ph||'')}" rows="3"
+                  style="width:100%;resize:vertical"></textarea>` :
+              `<input type="text" id="${f.id}" placeholder="${esc(f.ph||'')}"
+                style="width:100%" autocomplete="off">`}
+            </div>`).join('')}
+        </div>
+        <!-- Actions -->
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-d" onclick="PageProjects.closeModal()">Batal</button>
+          <button class="btn btn-p" onclick="PageProjects.saveModal('${type}','${parentId||''}')">
+            <i class="bi bi-check-lg"></i> Simpan
+          </button>
+        </div>
+      </div>`
+
+    // Color input live update label
+    cfg.fields.filter(f => f.type === 'color').forEach(f => {
+      const inp = document.getElementById(f.id)
+      const lbl = document.getElementById(f.id + '-label')
+      if (inp && lbl) inp.addEventListener('input', () => lbl.textContent = inp.value)
+    })
+
+    // Focus first text input
+    setTimeout(() => {
+      const first = overlay.querySelector('input[type=text],textarea')
+      if (first) first.focus()
+    }, 50)
+
+    // Enter key submit
+    overlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+        PageProjects.saveModal(type, parentId||'')
+      }
+      if (e.key === 'Escape') PageProjects.closeModal()
+    })
+  }
+
+  async function saveModal(type, parentId) {
+    const configs = {
+      project: { fields:['m-name','m-platform','m-color','m-desc'], required:'m-name' },
+      suite:   { fields:['m-name','m-desc'], required:'m-name' },
+      section: { fields:['m-name'], required:'m-name' },
+      tc:      { fields:['m-name','m-desc','m-prio'], required:'m-name' },
+    }
+    const cfg = configs[type]
+    if (!cfg) return
+
+    const vals = {}
+    for (const id of cfg.fields) {
+      const el = document.getElementById(id)
+      if (el) vals[id] = el.value.trim()
+    }
+
+    if (!vals[cfg.required]) {
+      const el = document.getElementById(cfg.required)
+      if (el) {
+        el.style.borderColor = 'var(--red)'
+        el.focus()
+        setTimeout(() => { if (el) el.style.borderColor = '' }, 2000)
+      }
+      toast('⚠️ Nama wajib diisi', 'error')
+      return
+    }
+
+    // Find and call the onSave from showModal context — use direct approach
+    closeModal()
+
+    const actions = {
+      project: async (vals) => {
+        const p = await window.api.db.saveProject({
+          name: vals['m-name'], platform: vals['m-platform']||'android',
+          color: vals['m-color']||'#3b7eed', description: vals['m-desc']||'',
+        })
+        _proj = p; render(); toast(`✅ Project "${p.name}" dibuat`)
+      },
+      suite: async (vals) => {
+        if (!_proj) { toast('Pilih project dulu', 'error'); return }
+        const s = await window.api.db.saveSuite({
+          project_id: _proj.id, name: vals['m-name'], description: vals['m-desc']||'',
+        })
+        _suite = s; render(); toast(`✅ Suite "${s.name}" dibuat`)
+      },
+      section: async (vals) => {
+        const sid = parentId || _suite?.id
+        if (!sid) { toast('Pilih suite dulu', 'error'); return }
+        const sec = await window.api.db.saveSection({ suite_id: sid, name: vals['m-name'] })
+        _section = sec; render(); toast(`✅ Section "${sec.name}" dibuat`)
+      },
+      tc: async (vals) => {
+        if (!_section) { toast('Pilih section dulu', 'error'); return }
+        await window.api.db.saveTestCase({
+          section_id: _section.id, name: vals['m-name'],
+          description: vals['m-desc']||'', priority: vals['m-prio']||'medium', status: 'pending',
+        })
+        render(); toast('✅ Test case dibuat')
+      },
+    }
+
+    try {
+      await actions[type]?.(vals)
+    } catch (err) {
+      toast(`Gagal simpan: ${err.message}`, 'error')
+    }
+  }
+
+  function closeModal() {
+    const overlay = document.getElementById('proj-modal-overlay')
+    if (overlay) overlay.style.display = 'none'
+  }
+
+  // ── Select ─────────────────────────────────────────────────
   async function selectProject(id) {
-    const projects = AppState.cache.projects || await window.api.db.getProjects()
-    _proj = projects.find(p => p.id === id)
+    const projects = await window.api.db.getProjects()
+    _proj = projects.find(p => String(p.id) === String(id)) || null
     _suite = null; _section = null
     render()
   }
   async function selectSuite(id) {
     const suites = await window.api.db.getSuites(_proj?.id)
-    _suite = suites.find(s => s.id === id)
+    _suite = suites.find(s => String(s.id) === String(id)) || null
     _section = null
     render()
   }
   async function selectSection(id) {
     const sections = await window.api.db.getSections(_suite?.id)
-    _section = sections.find(s => s.id === id)
+    _section = sections.find(s => String(s.id) === String(id)) || null
     render()
   }
 
-  async function newProject() {
-    const name = prompt('Nama project baru:')
-    if (!name?.trim()) return
-    const platform = prompt('Platform (android/ios/web):') || 'android'
-    const p = await window.api.db.saveProject({ name: name.trim(), platform, color: '#3b7eed' })
-    _proj = p
-    render()
-    toast(`✅ Project "${name}" dibuat`)
+  // ── Delete ─────────────────────────────────────────────────
+  async function deleteProject(id) {
+    if (!confirm('Hapus project ini beserta semua suites, sections, dan test cases di dalamnya?')) return
+    await window.api.db.deleteProject(id)
+    _proj = null; _suite = null; _section = null
+    render(); toast('Project dihapus')
   }
-  async function newSuite() {
-    if (!_proj) { toast('Pilih project dulu', 'error'); return }
-    const name = prompt('Nama test suite:')
-    if (!name?.trim()) return
-    const s = await window.api.db.saveSuite({ project_id: _proj.id, name: name.trim() })
-    _suite = s
-    render()
-  }
-  async function newSection(suiteId) {
-    const name = prompt('Nama section/folder:')
-    if (!name?.trim()) return
-    const sec = await window.api.db.saveSection({ suite_id: suiteId, name: name.trim() })
-    _section = sec
-    render()
-  }
-  async function newTC() {
-    if (!_section) { toast('Pilih section dulu', 'error'); return }
-    const name = prompt('Nama test case:')
-    if (!name?.trim()) return
-    await window.api.db.saveTestCase({ section_id: _section.id, name: name.trim(), status: 'pending' })
-    render()
+  async function deleteSection(id) {
+    if (!confirm('Hapus section ini?')) return
+    await window.api.db.deleteSection(id)
+    _section = null; render()
   }
   async function deleteTC(id) {
-    if (!confirm('Hapus test case ini?')) return
     await window.api.db.deleteTestCase(id)
-    render()
+    render(); toast('Test case dihapus')
   }
-  function editTC(id) {
-    toast('💡 Edit TC: buka di Inspector & Editor (segera tersedia)')
+
+  function openInInspector(tcId) {
     navigate('inspector')
+    toast('💡 Buka Inspector & tambahkan steps, lalu klik Simpan ke TC')
   }
 
-  return { render, selectProject, selectSuite, selectSection, newProject, newSuite, newSection, newTC, deleteTC, editTC }
-})()
+  // Legacy stubs
+  function newProject()        { showModal('project') }
+  function newSuite()          { showModal('suite') }
+  function newSection(sid)     { showModal('section', sid) }
+  function newTC()             { showModal('tc') }
 
+  return {
+    render, selectProject, selectSuite, selectSection,
+    showModal, saveModal, closeModal,
+    newProject, newSuite, newSection, newTC,
+    deleteProject, deleteSection, deleteTC, openInInspector,
+  }
+})()
 /* pages/testrun.js */
 window.PageTestRun = (() => {
   'use strict'
