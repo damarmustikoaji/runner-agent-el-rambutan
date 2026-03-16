@@ -14,7 +14,9 @@ contextBridge.exposeInMainWorld('testpilot', {
     checkDeps:      ()         => ipcRenderer.invoke('setup:checkDeps'),
     install:        (step)     => ipcRenderer.invoke('setup:install', step),
     fixMaestro:     ()         => ipcRenderer.invoke('setup:fixMaestro'),
-    onProgress:     (cb)       => ipcRenderer.on('setup:progress', (_, d) => cb(d)),
+    installDriver:  (serial)   => ipcRenderer.invoke('setup:installDriver', serial),
+    onProgress:     (cb)       => ipcRenderer.on('setup:progress',       (_, d) => cb(d)),
+    onDriverProgress:(cb)      => ipcRenderer.on('setup:driverProgress', (_, d) => cb(d)),
   },
 
   // ── Device Management ─────────────────────────────────────

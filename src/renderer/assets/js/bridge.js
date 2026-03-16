@@ -37,10 +37,12 @@
   window.api = {
     // ── Setup
     setup: {
-      checkDeps:   tp ? w(function()    { return tp.setup.checkDeps() })       : noop,
-      install:     tp ? w(function(s)   { return tp.setup.install(s) })        : noop,
-      fixMaestro:  tp ? w(function()    { return tp.setup.fixMaestro() })      : noop,
-      onProgress:  tp ? function(cb)    { return tp.setup.onProgress(cb) }     : function() {},
+      checkDeps:       tp ? w(function()    { return tp.setup.checkDeps() })       : noop,
+      install:         tp ? w(function(s)   { return tp.setup.install(s) })        : noop,
+      fixMaestro:      tp ? w(function()    { return tp.setup.fixMaestro() })      : noop,
+      installDriver:   tp ? w(function(s)   { return tp.setup.installDriver(s) })  : noop,
+      onProgress:      tp ? function(cb)    { return tp.setup.onProgress(cb) }     : function() {},
+      onDriverProgress:tp ? function(cb)    { return tp.setup.onDriverProgress(cb) } : function() {},
     },
 
     // ── Device

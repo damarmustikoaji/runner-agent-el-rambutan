@@ -140,14 +140,9 @@ class TestRunner extends EventEmitter {
         '--device', config.serial,
         'test',
         yamlPath,
-        '--no-ansi',          // disable ANSI color codes
-        '--reinstall-driver', // install Maestro driver APK ke device otomatis
-                              // fix untuk INJECT_EVENTS permission error pada device fisik
+        '--no-ansi',  // disable ANSI color codes
       ]
-
-      // Skip reinstall kalau user minta (lebih cepat setelah driver sudah terinstall)
       if (config.noReset || config.noReinstallDriver) {
-        args.splice(args.indexOf('--reinstall-driver'), 1)
         args.push('--no-reinstall-driver')
       }
 

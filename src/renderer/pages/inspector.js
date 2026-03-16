@@ -1197,7 +1197,12 @@ window.PageInspector = (() => {
 
     window.api.runner.onLog((entry) => {
       addDebugLog(entry.type, entry.msg)
-      // Sync ke left tab jika sedang di debug tab
+
+      // Deteksi INJECT_EVENTS — tampilkan banner install driver
+      if (entry.msg && entry.msg.includes('INJECT_EVENTS') && !document.getElementById('inject-events-banner')) {
+        _showInstallDriverBanner()
+      }
+
       if (_leftTab === 'debug') refreshLeftTab()
     })
 
@@ -1214,6 +1219,81 @@ window.PageInspector = (() => {
     window.api.runner.onFinish(() => {
       refreshEditor()
       if (_leftTab === 'debug') refreshLeftTab()
+    })
+  }
+
+  function _showInstallDriverBanner() {
+    // Tampilkan banner di bawah step editor
+    const editorEl = document.querySelector('.insp-R') || document.getElementById('content-area')
+    if (!editorEl) return
+
+    const banner = document.createElement('div')
+    banner.id = 'inject-events-banner'
+    banner.style.cssText = `
+      position:fixed; bottom:20px; right:20px; z-index:999;
+      background:#1e1e2e; border:1px solid rgba(229,77,46,.4);
+      border-radius:10px; padding:14px 16px; max-width:380px;
+      box-shadow:0 8px 32px rgba(0,0,0,.4); color:#e5e5e0;`
+    banner.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="font-size:20px;flex-shrink:0">⚠️</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px">
+            Maestro Driver Belum Terinstall
+          </div>
+          <div style="font-size:11px;color:#a0a0a0;margin-bottom:10px;line-height:1.5">
+            Untuk menjalankan tap/swipe di device fisik, Maestro perlu install driver APK sekali saja.
+          </div>
+          <div style="display:flex;gap:6px">
+            <button id="btn-install-driver"
+              style="background:#e54d2e;color:#fff;border:none;border-radius:6px;
+                     padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;flex:1">
+              ⬇️ Install Driver Sekarang
+            </button>
+            <button onclick="document.getElementById('inject-events-banner').remove()"
+              style="background:rgba(255,255,255,.1);color:#a0a0a0;border:none;border-radius:6px;
+                     padding:7px 10px;font-size:11px;cursor:pointer">
+              ✕
+            </button>
+          </div>
+          <div id="driver-install-log" style="display:none;margin-top:8px;font-size:10px;
+            font-family:monospace;color:#50fa7b;max-height:80px;overflow-y:auto;
+            background:rgba(0,0,0,.3);border-radius:5px;padding:6px"></div>
+        </div>
+      </div>`
+
+    document.body.appendChild(banner)
+
+    // Listen driver progress
+    window.api.setup.onDriverProgress((data) => {
+      const logEl = document.getElementById('driver-install-log')
+      if (logEl) {
+        logEl.style.display = 'block'
+        logEl.textContent += data.msg + '\n'
+        logEl.scrollTop = logEl.scrollHeight
+      }
+    })
+
+    document.getElementById('btn-install-driver')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-install-driver')
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Installing...' }
+      try {
+        const result = await window.api.setup.installDriver(_serial)
+        if (result?.ok) {
+          if (btn) { btn.textContent = '✅ Driver Terinstall!' }
+          addDebugLog('pass', '✅ Maestro driver terinstall. Coba Run Steps lagi.')
+          toast('✅ Driver berhasil diinstall! Coba Run Steps lagi.')
+          setTimeout(() => {
+            document.getElementById('inject-events-banner')?.remove()
+          }, 3000)
+        } else {
+          if (btn) { btn.textContent = '❌ Gagal — lihat log'; btn.disabled = false }
+          addDebugLog('fail', `Driver install gagal: ${result?.error || 'unknown'}`)
+        }
+      } catch (err) {
+        if (btn) { btn.textContent = '❌ Error'; btn.disabled = false }
+        addDebugLog('fail', `Driver install error: ${err.message}`)
+      }
     })
   }
 

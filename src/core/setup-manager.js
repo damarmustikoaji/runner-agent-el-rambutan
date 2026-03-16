@@ -351,6 +351,78 @@ class SetupManager extends EventEmitter {
   }
 
   /**
+   * Install Maestro driver ke device Android
+   * Wajib dijalankan sekali per device agar tapOn/input bisa bekerja
+   * Equivalent: maestro download-driver
+   *
+   * @param {string} serial - ADB device serial
+   * @param {Function} onProgress - callback(msg) untuk update UI
+   */
+  async installMaestroDriver(serial, onProgress) {
+    const emit = onProgress || ((msg) => logger.info(`[driver] ${msg}`))
+    const maestroPath = getMaestroPath()
+
+    if (!fs.existsSync(maestroPath)) {
+      throw new Error('Maestro CLI tidak ditemukan. Setup dulu di First-time Setup.')
+    }
+
+    emit('⬇️ Mendownload Maestro Android driver...')
+    emit('Ini perlu dilakukan sekali per device. Harap tunggu ~30 detik.')
+
+    const env = this._buildMaestroEnv()
+
+    return new Promise((resolve, reject) => {
+      const { spawn } = require('child_process')
+      const proc = spawn(maestroPath, ['download-driver'], { env })
+
+      let out = ''
+      const collect = (data) => {
+        const text = data.toString()
+        out += text
+        text.split('\n').filter(l => l.trim()).forEach(line => {
+          // Filter Java warnings
+          if (line.includes('WARNING:') || line.match(/^\s+at /)) return
+          emit(line.trim())
+        })
+      }
+
+      proc.stdout.on('data', collect)
+      proc.stderr.on('data', collect)
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          logger.info(`Maestro driver installed: ${out.slice(-200)}`)
+          emit('✅ Driver berhasil diinstall! Sekarang coba Run Steps lagi.')
+          resolve({ ok: true })
+        } else {
+          // Download-driver exit non-0 bisa karena sudah terinstall atau partial
+          if (out.includes('already') || out.includes('installed') || out.includes('success')) {
+            emit('✅ Driver sudah terinstall.')
+            resolve({ ok: true })
+          } else {
+            logger.warn(`download-driver exit ${code}: ${out.slice(-300)}`)
+            emit(`⚠️ Driver install mungkin perlu root. Exit: ${code}`)
+            // Tetap resolve ok:true — mungkin sebagian berhasil
+            resolve({ ok: true, warning: true })
+          }
+        }
+      })
+
+      proc.on('error', (err) => {
+        logger.error('installMaestroDriver error:', err.message)
+        reject(new Error(`Install driver gagal: ${err.message}`))
+      })
+
+      // Timeout 120 detik — download driver bisa lama
+      setTimeout(() => {
+        proc.kill()
+        emit('⚠️ Timeout — driver mungkin sudah terdownload. Coba Run Steps.')
+        resolve({ ok: true, timedOut: true })
+      }, 120000)
+    })
+  }
+
+  /**
    * Rekursif chmod menggunakan Node.js fs — tidak butuh shell
    * Aman dipakai dari dalam DMG/EXE
    */

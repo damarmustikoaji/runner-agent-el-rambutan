@@ -82,6 +82,21 @@ function registerAllHandlers(win) {
     }
   })
 
+  // Install Maestro Android driver ke device (sekali per device)
+  handle('setup:installDriver', async (_, serial) => {
+    const logs = []
+    try {
+      const result = await getSetupManager().installMaestroDriver(serial, (msg) => {
+        logs.push(msg)
+        win.webContents.send('setup:driverProgress', { msg })
+      })
+      return { ok: result.ok, logs }
+    } catch (err) {
+      logger.error('installDriver failed:', err.message)
+      return { ok: false, error: err.message, logs }
+    }
+  })
+
   // ── Device ─────────────────────────────────────────────────
   handle('device:list', async () => {
     return getDeviceManager().getDevices()
