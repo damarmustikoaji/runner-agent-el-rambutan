@@ -25,30 +25,29 @@ body {
   transition: width .2s cubic-bezier(.4,0,.2,1);
 }
 .sidebar.collapsed { width: var(--sb-col); }
+
+/* Sidebar header: hanya brand/logo, tidak ada hamburger lagi */
 .sb-header {
   height: var(--tb-h);
-  /* macOS hiddenInset: traffic lights (close/min/max) ada di kiri atas.
-     Dengan posisi default x:14, butuh padding kiri ~80px agar tidak overlap.
-     Hamburger button digeser ke kanan traffic lights. */
-  padding: 0 10px 0 80px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-  /* Drag area untuk macOS — area ini bisa dipakai drag window */
+  overflow: hidden;
   -webkit-app-region: drag;
 }
-/* Tombol dan elemen interaktif di dalam drag area harus no-drag */
-.sb-header .hbg,
 .sb-header .sb-brand { -webkit-app-region: no-drag; }
-.sidebar.collapsed .sb-header {
-  /* Saat collapsed, traffic lights muat di padding kiri yang lebih sempit */
-  padding: 0 6px 0 80px;
-  justify-content: center;
-}
+
+/* Collapsed: sembunyikan brand tapi header tetap ada sebagai drag area untuk traffic lights */
+.sidebar.collapsed .sb-header { padding: 0; min-height: var(--tb-h); }
+.sidebar.collapsed .sb-brand  { display: none; }
+
+/* Hamburger sekarang ada di main topbar */
 .hbg {
   width: 28px; height: 28px; border: none; background: none;
   cursor: pointer; border-radius: 6px; color: var(--text2);
   font-size: 16px; display: flex; align-items: center;
   justify-content: center; transition: background .12s; flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 .hbg:hover { background: var(--surface2); }
 .sb-brand   { display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; min-width: 0; }
@@ -56,8 +55,7 @@ body {
 .sb-texts   { overflow: hidden; white-space: nowrap; }
 .sb-name    { font-weight: 700; font-size: 13px; letter-spacing: -.02em; }
 .sb-ver     { font-size: 9px; color: var(--text3); font-family: var(--font-mono); }
-.sidebar.collapsed .sb-texts,
-.sidebar.collapsed .sb-brand  { display: none; }
+.sidebar.collapsed .sb-texts { display: none; }
 .sb-nav     { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 6px; }
 .ng         { margin-bottom: 2px; }
 .ng-lbl     { font-size: 9px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .6px; padding: 8px 8px 3px; white-space: nowrap; overflow: hidden; transition: opacity .15s; }
@@ -92,9 +90,20 @@ body {
 .topbar {
   height: var(--tb-h); border-bottom: 1px solid var(--border);
   background: var(--surface); display: flex; align-items: center;
-  padding: 0 16px; gap: 8px; flex-shrink: 0;
+  padding: 0 16px 0 8px; gap: 6px; flex-shrink: 0;
+  /* macOS: topbar adalah drag area untuk move window */
+  -webkit-app-region: drag;
 }
-.tb-bc  { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text3); flex: 1; min-width: 0; }
+/* Semua element interaktif di topbar harus no-drag */
+.topbar .hbg,
+.topbar .btn,
+.topbar button,
+.topbar a,
+.topbar input,
+.topbar select,
+.tb-act,
+.tb-act * { -webkit-app-region: no-drag; }
+.tb-bc  { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text3); flex: 1; min-width: 0; -webkit-app-region: no-drag; }
 .tb-bc b { color: var(--text); font-weight: 600; }
 .tb-sep { color: var(--border2); }
 .tb-act { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
