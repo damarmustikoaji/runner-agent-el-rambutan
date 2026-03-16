@@ -19,9 +19,6 @@ window.PageSetup = (() => {
     const content = document.getElementById('content-area')
     const ta      = document.getElementById('topbar-actions')
     ta.innerHTML = `
-      <button class="btn btn-d btn-sm" onclick="PageSetup.scanDevices()">
-        <i class="bi bi-arrow-clockwise"></i> Scan Device
-      </button>
       <button class="btn btn-p btn-sm" id="setup-start-btn" onclick="PageSetup.startInstall()">
         <i class="bi bi-lightning-charge-fill"></i> Mulai Setup Otomatis
       </button>`
@@ -86,7 +83,7 @@ window.PageSetup = (() => {
       <div class="card">
         <div style="display:flex;flex-direction:column;gap:0">
 
-          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
             <i class="bi bi-phone-fill" style="font-size:15px;flex-shrink:0;color:var(--text3);margin-top:2px"></i>
             <div>
               <div class="fw6 sm mb4">Aktifkan USB Debugging di HP</div>
@@ -96,12 +93,56 @@ window.PageSetup = (() => {
                 3. Aktifkan <b>USB Debugging</b><br>
                 4. Colok HP ke Mac via kabel USB → tap <b>Allow / Trust</b> di HP
               </div>
-              <div class="flex g5 wrap mt8">
-                ${[['Samsung','https://www.samsung.com/us/support/downloads/'],['Xiaomi','https://www.mi.com/global/service/support/'],['Oppo/Realme','https://www.oppo.com/en/support/'],['Universal ADB','https://adb.clockworkmod.com/']].map(([l,u])=>`
-                  <span class="tag" style="cursor:pointer;border:1px solid var(--border2)"
+              <div class="flex g8 wrap mt8">
+                ${[['Samsung','https://www.samsung.com/us/support/downloads/'],
+                   ['Xiaomi','https://www.mi.com/global/service/support/'],
+                   ['Oppo/Realme','https://www.oppo.com/en/support/'],
+                   ['Universal ADB','https://adb.clockworkmod.com/']
+                  ].map(([l,u])=>`
+                  <span style="display:inline-flex;align-items:center;gap:5px;
+                    cursor:pointer;border:1px solid var(--border2);border-radius:5px;
+                    padding:3px 9px;font-size:11px;background:var(--surface2);color:var(--text2)"
                     onclick="window.api.system.openExternal('${u}')">
-                    <i class="bi bi-box-arrow-up-right" style="font-size:9px"></i> ${l}
+                    ${esc(l)}
+                    <i class="bi bi-box-arrow-up-right" style="font-size:9px;color:var(--text3)"></i>
                   </span>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Panduan Emulator Android -->
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+            <i class="bi bi-display" style="font-size:15px;flex-shrink:0;color:var(--text3);margin-top:2px"></i>
+            <div style="width:100%">
+              <div class="fw6 sm mb4">Gunakan Android Emulator (AVD)</div>
+              <div class="xs muted" style="line-height:1.75;margin-bottom:8px">
+                Emulator tidak butuh device fisik dan tidak ada masalah permission. Cocok untuk development & testing.
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                ${[
+                  ['1', 'Install Android Studio', 'Download dari developer.android.com/studio', 'https://developer.android.com/studio'],
+                  ['2', 'Buka Device Manager', 'Android Studio → More Actions → Device Manager (atau menu Tools → Device Manager)', null],
+                  ['3', 'Buat Virtual Device', 'Klik "+" → Pilih Pixel 6 → Next → Pilih API 31+ (Android 12) → Download jika belum → Next → Finish', null],
+                  ['4', 'Jalankan Emulator', 'Klik tombol ▶ di Device Manager. Tunggu boot ~1-2 menit pertama kali', null],
+                  ['5', 'Cek di TestPilot', 'Emulator otomatis terdeteksi sebagai "emulator-5554" di panel Device', null],
+                ].map(([n,t,d,u]) => `
+                  <div style="display:flex;gap:8px;align-items:flex-start;
+                    background:var(--surface2);border-radius:6px;padding:7px 10px">
+                    <div style="width:18px;height:18px;background:var(--blue);border-radius:50%;
+                      color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;
+                      justify-content:center;flex-shrink:0;margin-top:1px">${esc(n)}</div>
+                    <div>
+                      <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:2px">
+                        ${esc(t)}
+                        ${u ? `<span style="display:inline-flex;align-items:center;gap:3px;
+                          cursor:pointer;color:var(--blue);font-weight:400;margin-left:6px;font-size:10px"
+                          onclick="window.api.system.openExternal('${u}')">
+                          Download <i class="bi bi-box-arrow-up-right" style="font-size:9px"></i>
+                        </span>` : ''}
+                      </div>
+                      <div style="font-size:10px;color:var(--text3);line-height:1.5">${esc(d)}</div>
+                    </div>
+                  </div>`).join('')}
               </div>
             </div>
           </div>

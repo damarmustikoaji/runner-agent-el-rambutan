@@ -142,8 +142,28 @@ class TestRunner extends EventEmitter {
         yamlPath,
         '--no-ansi',  // disable ANSI color codes
       ]
+
+      // --no-reinstall-driver: skip reinstall Maestro driver APK (lebih cepat setelah pertama kali)
+      // noReset juga skip reinstall karena intent-nya sama: tidak modifikasi device state
       if (config.noReset || config.noReinstallDriver) {
         args.push('--no-reinstall-driver')
+      }
+
+      // autoGrant: pass env variable MAESTRO_DRIVER_STARTUP_TIMEOUT dan grant permissions via adb
+      // sebelum run Maestro
+      if (config.autoGrant && config.serial && config.stepsYaml) {
+        // Grant semua runtime permissions ke app target via ADB sebelum Maestro jalan
+        const { getAdbPath } = require('../utils/process-utils')
+        const { execFile }   = require('child_process')
+        const adbPath        = getAdbPath()
+        const pkg            = (config.stepsYaml.match(/^appId:\s*(\S+)/m) || [])[1]
+        if (pkg) {
+          execFile(adbPath, ['-s', config.serial, 'shell', 'pm', 'grant', pkg,
+            'android.permission.READ_EXTERNAL_STORAGE'], () => {})
+          execFile(adbPath, ['-s', config.serial, 'shell', 'pm', 'grant', pkg,
+            'android.permission.WRITE_EXTERNAL_STORAGE'], () => {})
+          logger.info(`Auto-grant permissions for ${pkg}`)
+        }
       }
 
       this._process = spawn(maestroPath, args, { env })

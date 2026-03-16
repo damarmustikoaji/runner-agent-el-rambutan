@@ -167,28 +167,58 @@ window.PageInspector = (() => {
             <!-- Extended config (collapsible) -->
             <div id="insp-ext-cfg" style="display:none">
               <div class="divider" style="margin:6px 0"></div>
-              <div class="r2 mb6">
-                <div class="field">
-                  <label class="fl">Orientasi</label>
-                  <select class="w100" onchange="AppState.inspector.orient=this.value">
-                    <option value="portrait">Portrait</option>
-                    <option value="landscape">Landscape</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label class="fl">Upload APK</label>
-                  <input type="file" class="w100" accept=".apk" onchange="PageInspector.handleApkUpload(this)">
-                </div>
+
+              <!-- Upload APK -->
+              <div class="field mb6">
+                <label class="fl"><i class="bi bi-file-earmark-arrow-up"></i> Upload APK</label>
+                <input type="file" class="w100" accept=".apk" onchange="PageInspector.handleApkUpload(this)">
               </div>
-              <div class="flex g12 wrap mb6">
-                ${[['noReset','No Reset'],['noReinstallDriver','No Reinstall Driver'],['autoGrant','Auto Grant']]
-                  .map(([k,l]) => `<label class="flex ic g5" style="cursor:pointer;font-size:11px">
-                    <input type="checkbox" onchange="AppState.inspector.${k}=this.checked" style="accent-color:var(--blue)"> ${l}
-                  </label>`).join('')}
+
+              <!-- Checkboxes dengan tooltip informatif -->
+              <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+                <label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;
+                  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                  padding:7px 9px;font-size:11px"
+                  title="Skip reinstall Maestro driver APK ke device. Lebih cepat setelah driver sudah terinstall pertama kali.">
+                  <input type="checkbox" ${AppState.inspector.noReinstallDriver?'checked':''}
+                    onchange="AppState.inspector.noReinstallDriver=this.checked"
+                    style="accent-color:var(--blue);flex-shrink:0;margin-top:1px">
+                  <div>
+                    <div style="font-weight:600;color:var(--text)">No Reinstall Driver</div>
+                    <div style="color:var(--text3);font-size:10px;margin-top:1px">Skip install Maestro driver APK — aktifkan setelah run pertama berhasil agar lebih cepat</div>
+                  </div>
+                </label>
+
+                <label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;
+                  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                  padding:7px 9px;font-size:11px"
+                  title="Tidak melakukan reset state app sebelum run. App tetap di state terakhir.">
+                  <input type="checkbox" ${AppState.inspector.noReset?'checked':''}
+                    onchange="AppState.inspector.noReset=this.checked"
+                    style="accent-color:var(--blue);flex-shrink:0;margin-top:1px">
+                  <div>
+                    <div style="font-weight:600;color:var(--text)">No Reset</div>
+                    <div style="color:var(--text3);font-size:10px;margin-top:1px">Lanjutkan dari state app saat ini — tidak clear data/cache sebelum test dimulai</div>
+                  </div>
+                </label>
+
+                <label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;
+                  background:var(--surface);border:1px solid var(--border);border-radius:6px;
+                  padding:7px 9px;font-size:11px"
+                  title="Auto-grant storage permissions ke app target sebelum run via ADB.">
+                  <input type="checkbox" ${AppState.inspector.autoGrant?'checked':''}
+                    onchange="AppState.inspector.autoGrant=this.checked"
+                    style="accent-color:var(--blue);flex-shrink:0;margin-top:1px">
+                  <div>
+                    <div style="font-weight:600;color:var(--text)">Auto Grant Permissions</div>
+                    <div style="color:var(--text3);font-size:10px;margin-top:1px">Grant storage permissions ke app via ADB sebelum run — berguna untuk app yang minta izin storage</div>
+                  </div>
+                </label>
               </div>
+
               <!-- Package selector dari list installed -->
               <div class="field">
-                <label class="fl">Semua Packages Terinstall</label>
+                <label class="fl">Pilih dari Packages Terinstall</label>
                 <select class="w100" id="pkg-select" onchange="PageInspector.selectPackage(this.value)">
                   <option value="">-- Pilih package --</option>
                   ${_packages.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}
