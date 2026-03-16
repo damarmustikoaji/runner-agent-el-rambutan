@@ -164,7 +164,7 @@ window.PageInspector = (() => {
                 </div>
               </div>
               <div class="flex g12 wrap mb6">
-                ${[['noReset','No Reset'],['noSign','No Sign'],['autoGrant','Auto Grant']]
+                ${[['noReset','No Reset'],['noReinstallDriver','No Reinstall Driver'],['autoGrant','Auto Grant']]
                   .map(([k,l]) => `<label class="flex ic g5" style="cursor:pointer;font-size:11px">
                     <input type="checkbox" onchange="AppState.inspector.${k}=this.checked" style="accent-color:var(--blue)"> ${l}
                   </label>`).join('')}
@@ -652,30 +652,18 @@ window.PageInspector = (() => {
   // Overlay = layer transparan tepat di atas gambar
 
   function _getDeviceCoords(event) {
-    // Gunakan screen-img langsung sebagai referensi koordinat
-    // Lebih reliable daripada overlay karena img tidak punya children
     const img = document.getElementById('screen-img')
     if (!img || img.style.display === 'none') return null
     if (!_imgW || !_imgH || !_screenW || !_screenH) return null
 
     const imgRect = img.getBoundingClientRect()
+    const relX    = event.clientX - imgRect.left
+    const relY    = event.clientY - imgRect.top
 
-    // Koordinat relatif terhadap image element
-    const relX = event.clientX - imgRect.left
-    const relY = event.clientY - imgRect.top
-
-    // Pastikan klik dalam batas gambar
     if (relX < 0 || relY < 0 || relX > imgRect.width || relY > imgRect.height) return null
 
-    // Scale ke device coordinates
-    // imgRect.width = rendered width (misal 158px)
-    // _screenW = device actual width (misal 720px)
     const devX = Math.round(relX * _screenW / imgRect.width)
     const devY = Math.round(relY * _screenH / imgRect.height)
-
-    logger.debug && addDebugLog('info',
-      `Coords: click=(${Math.round(relX)},${Math.round(relY)}) img=${Math.round(imgRect.width)}×${Math.round(imgRect.height)} → dev=(${devX},${devY})`
-    )
 
     return { devX, devY, relX, relY }
   }
@@ -1184,12 +1172,13 @@ window.PageInspector = (() => {
 
     try {
       await window.api.runner.run({
-        serial:    _serial,
-        stepsYaml: dsl,
-        tcName:    'Inspector Run',
-        tcId:      'inspector-run',
-        envVars:   env,
-        noReset:   AppState.inspector?.noReset || false,
+        serial:             _serial,
+        stepsYaml:          dsl,
+        tcName:             'Inspector Run',
+        tcId:               'inspector-run',
+        envVars:            env,
+        noReset:            AppState.inspector?.noReset            || false,
+        noReinstallDriver:  AppState.inspector?.noReinstallDriver  || false,
       })
       addDebugLog('pass', '═══ RUN PASSED ═══')
       toast('✅ Semua steps berhasil!', 'success')

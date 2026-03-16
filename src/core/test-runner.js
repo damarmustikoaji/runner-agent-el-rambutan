@@ -140,9 +140,16 @@ class TestRunner extends EventEmitter {
         '--device', config.serial,
         'test',
         yamlPath,
-        '--no-ansi',   // disable ANSI color codes agar output bersih di log
+        '--no-ansi',          // disable ANSI color codes
+        '--reinstall-driver', // install Maestro driver APK ke device otomatis
+                              // fix untuk INJECT_EVENTS permission error pada device fisik
       ]
-      if (config.noReset) args.push('--no-reinstall-driver')
+
+      // Skip reinstall kalau user minta (lebih cepat setelah driver sudah terinstall)
+      if (config.noReset || config.noReinstallDriver) {
+        args.splice(args.indexOf('--reinstall-driver'), 1)
+        args.push('--no-reinstall-driver')
+      }
 
       this._process = spawn(maestroPath, args, { env })
 
@@ -154,6 +161,20 @@ class TestRunner extends EventEmitter {
         const lines = data.toString().split('\n').filter(l => l.trim())
         for (const line of lines) {
           logger.debug(`[maestro] ${line}`)
+
+          // Filter Java stacktrace lines — terlalu verbose, sembunyikan dari user
+          if (line.match(/^\s+at [a-zA-Z]/) || line.includes('CoroutineScheduler') || line.includes('kotlinx.coroutines')) {
+            continue
+          }
+
+          // Deteksi INJECT_EVENTS di stdout juga
+          if (!injectErrorShown && line.includes('INJECT_EVENTS')) {
+            injectErrorShown = true
+            this._emitLog('fail', '❌ INJECT_EVENTS: Maestro driver belum terinstall di device.')
+            this._emitLog('warn', '🔄 Coba aktifkan "No Reinstall Driver" OFF (default), lalu Run lagi agar Maestro install driver otomatis.')
+            continue
+          }
+
           const parsed = this._parseMaestroLine(line)
           this._emitLog(parsed.type, parsed.msg)
           if (parsed.stepIndex !== undefined) {
@@ -175,31 +196,26 @@ class TestRunner extends EventEmitter {
         logger.warn(`[maestro:stderr] ${text}`)
 
         // Filter WARNING Java yang tidak relevan
-        const isJavaWarning = text.includes('WARNING:') && (
+        if (text.includes('WARNING:') && (
           text.includes('java.lang.System') ||
           text.includes('sun.misc.Unsafe') ||
-          text.includes('enable-native-access')
-        )
-        if (isJavaWarning) return  // skip, tidak ditampilkan ke user
+          text.includes('enable-native-access') ||
+          text.includes('ALL-UNNAMED')
+        )) return
 
-        // Deteksi error INJECT_EVENTS dan berikan pesan yang jelas
+        // Deteksi INJECT_EVENTS
         if (!injectErrorShown && text.includes('INJECT_EVENTS')) {
           injectErrorShown = true
-          this._emitLog('fail',
-            '❌ Error: Maestro tidak bisa inject tap ke aplikasi ini.'
-          )
-          this._emitLog('warn',
-            '💡 Solusi: Jalankan "adb shell pm grant ' + (config.envVars?.APP_ID || '<packageName>') +
-            ' android.permission.INJECT_EVENTS" atau test dengan app debug build.'
-          )
-          this._emitLog('warn',
-            '   Atau install maestro-android driver: maestro download-driver'
-          )
+          this._emitLog('fail', '❌ INJECT_EVENTS: Maestro driver belum terinstall di device.')
+          this._emitLog('warn', '🔄 Run sedang menginstall driver, tunggu run berikutnya...')
           return
         }
 
-        // Error lain yang relevan
-        if (!text.includes('Config Field Required') && text.length < 500) {
+        // Stacktrace lines — skip
+        if (text.match(/^\s+at [a-zA-Z]/) || text.includes('StatusRuntimeException')) return
+
+        // Pesan relevan lain (pendek)
+        if (text.length < 300 && !text.includes('Config Field Required')) {
           this._emitLog('warn', text)
         }
       })
