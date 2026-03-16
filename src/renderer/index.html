@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- CSP: hanya izinkan asset lokal, tidak ada external network dari renderer -->
+<meta http-equiv="Content-Security-Policy"
+  content="default-src 'self';
+           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;
+           font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com;
+           img-src 'self' data: blob:;
+           script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;">
+<title>TestPilot</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.13.1/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/css/variables.css">
+<link rel="stylesheet" href="./assets/css/main.css">
+</head>
+<body>
+<div id="app-shell">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sb-header">
+      <button class="hbg" id="hamburger" title="Toggle sidebar">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="sb-brand">
+        <div class="sb-mark">T</div>
+        <div class="sb-texts">
+          <div class="sb-name">TestPilot</div>
+          <div class="sb-ver">v1.0 · local</div>
+        </div>
+      </div>
+    </div>
+    <nav class="sb-nav" id="sidebar-nav">
+      <div class="ng">
+        <div class="ng-lbl">Workspace</div>
+        <button class="nb active" data-page="setup">
+          <span class="ni"><i class="bi bi-gear"></i></span>
+          <span class="nl">First-time Setup</span>
+        </button>
+        <button class="nb" data-page="dashboard">
+          <span class="ni"><i class="bi bi-grid-1x2-fill"></i></span>
+          <span class="nl">Dashboard</span>
+        </button>
+      </div>
+      <div class="ng">
+        <div class="ng-lbl">Test Creation</div>
+        <button class="nb" data-page="inspector">
+          <span class="ni"><i class="bi bi-search"></i></span>
+          <span class="nl">Inspector &amp; Editor</span>
+        </button>
+        <button class="nb" data-page="projects">
+          <span class="ni"><i class="bi bi-folder2-open"></i></span>
+          <span class="nl">Projects</span>
+          <span class="nbadge" id="badge-projects">0</span>
+        </button>
+      </div>
+      <div class="ng">
+        <div class="ng-lbl">Execution</div>
+        <button class="nb" data-page="testrun">
+          <span class="ni"><i class="bi bi-play-circle-fill"></i></span>
+          <span class="nl">Test Run / Plan</span>
+        </button>
+        <button class="nb" data-page="reports">
+          <span class="ni"><i class="bi bi-bar-chart-line-fill"></i></span>
+          <span class="nl">Reports &amp; History</span>
+        </button>
+      </div>
+      <div class="ng">
+        <div class="ng-lbl">Config</div>
+        <button class="nb" data-page="environments">
+          <span class="ni"><i class="bi bi-tree-fill"></i></span>
+          <span class="nl">Environments</span>
+        </button>
+        <button class="nb" data-page="settings">
+          <span class="ni"><i class="bi bi-sliders"></i></span>
+          <span class="nl">Settings</span>
+        </button>
+      </div>
+    </nav>
+    <div class="sb-bottom">
+      <div class="env-pill" id="active-env-pill">
+        <div class="ep-dot"></div>
+        <div class="ep-txt">
+          <div class="ep-lbl" id="env-name">Loading...</div>
+          <div class="ep-sub">environment aktif</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main area -->
+  <div class="main-area">
+    <div class="topbar" id="topbar">
+      <div class="tb-bc" id="breadcrumb"><b>Loading...</b></div>
+      <div class="tb-act" id="topbar-actions"></div>
+    </div>
+    <!-- Page content injected here -->
+    <div class="content-area" id="content-area">
+      <div class="loading-screen">
+        <div class="loading-icon"><i class="bi bi-arrow-clockwise"></i></div>
+        <div>Memuat...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toasts-wrap" id="toasts"></div>
+
+<!-- Core JS -->
+<script src="./assets/js/bridge.js"></script>
+<script src="./assets/js/state.js"></script>
+<script src="./assets/js/utils.js"></script>
+
+<!-- Pages -->
+<script src="./pages/setup.js"></script>
+<script src="./pages/dashboard.js"></script>
+<script src="./pages/inspector.js"></script>
+<script src="./pages/other-pages.js"></script>
+
+<!-- Router - init last -->
+<script src="./assets/js/router.js"></script>
+</body>
+</html>

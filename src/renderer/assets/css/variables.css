@@ -1,0 +1,48 @@
+/* variables.css — design tokens, diimport pertama */
+:root {
+  /* Colors */
+  --bg:          #f7f7f5;
+  --surface:     #ffffff;
+  --surface2:    #f3f3f0;
+  --surface3:    #ebebea;
+  --border:      #e5e5e2;
+  --border2:     #d4d4cf;
+  --text:        #1a1a18;
+  --text2:       #52524e;
+  --text3:       #8c8c87;
+  --accent:      #e54d2e;
+  --accent-bg:   #fff5f3;
+  --blue:        #3b7eed;
+  --blue-bg:     #f0f6ff;
+  --blue-border: rgba(59,126,237,.25);
+  --green:       #2a9d5c;
+  --green-bg:    #f0faf5;
+  --yellow:      #c47d0e;
+  --yellow-bg:   #fef9ec;
+  --purple:      #6e56cf;
+  --red:         #dc2626;
+  --red-bg:      #fef2f2;
+
+  /* Layout */
+  --sb-w:        220px;
+  --sb-col:      48px;
+  --tb-h:        48px;
+  --min-w:       1280px;
+
+  /* Shadows */
+  --sh:          0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  --sh2:         0 4px 16px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.06);
+  --sh3:         0 8px 32px rgba(0,0,0,.14);
+
+  /* Typography */
+  --font:        'Geist', -apple-system, sans-serif;
+  --font-mono:   'Geist Mono', 'SF Mono', monospace;
+
+  /* Inspector highlight */
+  --hl-color:    rgba(59,126,237,.18);
+  --hl-border:   #3b7eed;
+  --hl-selected: rgba(229,77,46,.18);
+  --hl-selected-border: #e54d2e;
+  --hl-hover:    rgba(42,157,92,.15);
+  --hl-hover-border: #2a9d5c;
+}

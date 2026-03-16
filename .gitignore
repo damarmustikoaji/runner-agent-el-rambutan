@@ -1,0 +1,30 @@
+node_modules/
+out/
+.webpack/
+dist/
+
+# User data — jangan pernah commit
+userData/
+~/.testpilot/
+
+# Logs
+*.log
+logs/
+
+# Environment & secrets
+.env
+.env.*
+environments.enc.json
+
+# macOS
+.DS_Store
+*.dmg
+
+# Build artifacts
+*.asar
+*.node.map
+
+# IDE
+.vscode/
+.idea/
+*.swp
