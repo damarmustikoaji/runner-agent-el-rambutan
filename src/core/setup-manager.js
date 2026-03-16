@@ -352,74 +352,115 @@ class SetupManager extends EventEmitter {
 
   /**
    * Install Maestro driver ke device Android
-   * Wajib dijalankan sekali per device agar tapOn/input bisa bekerja
-   * Equivalent: maestro download-driver
    *
-   * @param {string} serial - ADB device serial
-   * @param {Function} onProgress - callback(msg) untuk update UI
+   * Proses:
+   * 1. maestro download-driver  → download APK ke ~/.maestro/
+   * 2. Cari APK yang didownload
+   * 3. adb install APK ke device
    */
   async installMaestroDriver(serial, onProgress) {
-    const emit = onProgress || ((msg) => logger.info(`[driver] ${msg}`))
+    const emit       = onProgress || ((msg) => logger.info(`[driver] ${msg}`))
     const maestroPath = getMaestroPath()
+    const home       = os.homedir()
+    const { execFile, spawn } = require('child_process')
+    const { getAdbPath } = require('../utils/process-utils')
 
     if (!fs.existsSync(maestroPath)) {
       throw new Error('Maestro CLI tidak ditemukan. Setup dulu di First-time Setup.')
     }
 
-    emit('⬇️ Mendownload Maestro Android driver...')
-    emit('Ini perlu dilakukan sekali per device. Harap tunggu ~30 detik.')
-
+    emit('⬇️ Step 1/3: Mendownload Maestro Android driver...')
     const env = this._buildMaestroEnv()
 
-    return new Promise((resolve, reject) => {
-      const { spawn } = require('child_process')
+    // Step 1: download-driver
+    await new Promise((resolve) => {
       const proc = spawn(maestroPath, ['download-driver'], { env })
-
       let out = ''
-      const collect = (data) => {
-        const text = data.toString()
-        out += text
-        text.split('\n').filter(l => l.trim()).forEach(line => {
-          // Filter Java warnings
-          if (line.includes('WARNING:') || line.match(/^\s+at /)) return
-          emit(line.trim())
-        })
+      const collect = (d) => {
+        const t = d.toString(); out += t
+        t.split('\n').filter(l => l.trim() && !l.includes('WARNING:') && !l.match(/^\s+at /))
+          .forEach(l => emit(l.trim()))
       }
-
-      proc.stdout.on('data', collect)
-      proc.stderr.on('data', collect)
-
-      proc.on('close', (code) => {
-        if (code === 0) {
-          logger.info(`Maestro driver installed: ${out.slice(-200)}`)
-          emit('✅ Driver berhasil diinstall! Sekarang coba Run Steps lagi.')
-          resolve({ ok: true })
-        } else {
-          // Download-driver exit non-0 bisa karena sudah terinstall atau partial
-          if (out.includes('already') || out.includes('installed') || out.includes('success')) {
-            emit('✅ Driver sudah terinstall.')
-            resolve({ ok: true })
-          } else {
-            logger.warn(`download-driver exit ${code}: ${out.slice(-300)}`)
-            emit(`⚠️ Driver install mungkin perlu root. Exit: ${code}`)
-            // Tetap resolve ok:true — mungkin sebagian berhasil
-            resolve({ ok: true, warning: true })
-          }
-        }
-      })
-
-      proc.on('error', (err) => {
-        logger.error('installMaestroDriver error:', err.message)
-        reject(new Error(`Install driver gagal: ${err.message}`))
-      })
-
-      // Timeout 120 detik — download driver bisa lama
-      setTimeout(() => {
-        proc.kill()
-        emit('⚠️ Timeout — driver mungkin sudah terdownload. Coba Run Steps.')
-        resolve({ ok: true, timedOut: true })
-      }, 120000)
+      proc.stdout?.on('data', collect)
+      proc.stderr?.on('data', collect)
+      proc.on('close', () => resolve())
+      proc.on('error', () => resolve())
+      setTimeout(() => { proc.kill(); resolve() }, 90000)
     })
+
+    // Step 2: cari APK yang baru didownload
+    emit('🔍 Step 2/3: Mencari driver APK...')
+    const searchDirs = [
+      path.join(home, '.maestro'),
+      path.join(home, '.maestro', 'drivers'),
+      path.join(home, '.android', 'maestro'),
+      path.join(home, 'Library', 'Application Support', 'maestro'),
+    ]
+
+    const findApks = (dir) => {
+      const results = []
+      try {
+        if (!fs.existsSync(dir)) return results
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        for (const e of entries) {
+          const full = path.join(dir, e.name)
+          if (e.isDirectory()) { results.push(...findApks(full)) }
+          else if (e.name.endsWith('.apk')) { results.push(full) }
+        }
+      } catch {}
+      return results
+    }
+
+    let apks = []
+    for (const dir of searchDirs) {
+      apks.push(...findApks(dir))
+    }
+
+    // Filter APK relevan (maestro driver / server)
+    const driverApks = apks.filter(p =>
+      p.toLowerCase().includes('maestro') ||
+      p.toLowerCase().includes('driver') ||
+      p.toLowerCase().includes('server')
+    )
+
+    if (driverApks.length === 0) {
+      emit('⚠️ APK driver tidak ditemukan setelah download.')
+      emit(`   Dicari di: ${searchDirs.join(', ')}`)
+      emit('   Coba install manual: adb install -r -t ~/.maestro/drivers/*.apk')
+      // Meski tidak ketemu, mungkin sudah terinstall sebelumnya
+      return { ok: true, warning: 'apk-not-found' }
+    }
+
+    logger.info(`Found driver APKs: ${driverApks.join(', ')}`)
+    emit(`✅ Ditemukan ${driverApks.length} APK driver`)
+
+    // Step 3: install setiap APK ke device via adb
+    emit('📲 Step 3/3: Menginstall driver ke device...')
+    const adbPath = getAdbPath()
+
+    for (const apkPath of driverApks) {
+      const apkName = path.basename(apkPath)
+      emit(`   Installing: ${apkName}`)
+      const result = await new Promise((resolve) => {
+        execFile(adbPath, ['-s', serial, 'install', '-r', '-t', '-g', apkPath],
+          { timeout: 60000 },
+          (err, stdout, stderr) => {
+            const out = (stdout + stderr).toLowerCase()
+            const ok  = !err || out.includes('success') || out.includes('installed')
+            logger.info(`adb install ${apkName}: exit=${err?.code} out=${out.slice(0,200)}`)
+            resolve({ ok, out })
+          }
+        )
+      })
+      if (result.ok) {
+        emit(`   ✅ ${apkName} terinstall`)
+      } else {
+        emit(`   ⚠️ ${apkName}: ${result.out.slice(0, 100)}`)
+      }
+    }
+
+    emit('✅ Driver installation selesai! Coba Run Steps lagi.')
+    return { ok: true }
   }
 
   /**

@@ -866,8 +866,8 @@ window.PageInspector = (() => {
     if (!img || img.style.display === 'none') return
 
     const rect = img.getBoundingClientRect()
-    _imgW = rect.width
-    _imgH = rect.height
+    const newW = Math.round(rect.width)
+    const newH = Math.round(rect.height)
 
     // Set overlay persis sama ukuran dan posisi dengan gambar
     const overlay = document.getElementById('screen-overlay')
@@ -880,16 +880,24 @@ window.PageInspector = (() => {
       overlay.style.top    = offsetTop  + 'px'
       overlay.style.width  = rect.width  + 'px'
       overlay.style.height = rect.height + 'px'
-      // CRITICAL: pointer-events harus 'auto' agar click/hover diterima!
       overlay.style.pointerEvents = 'auto'
       overlay.style.cursor        = 'crosshair'
     }
 
-    addDebugLog('info',
-      `Render size: ${Math.round(_imgW)}×${Math.round(_imgH)} ` +
-      `(device: ${_screenW}×${_screenH}, ` +
-      `scale: ${(_imgW/_screenW).toFixed(3)}×${(_imgH/_screenH).toFixed(3)})`
-    )
+    // Log hanya kalau dimensi berubah (cegah spam di debug log)
+    if (newW !== _imgW || newH !== _imgH) {
+      _imgW = newW
+      _imgH = newH
+      addDebugLog('info',
+        `Render size: ${_imgW}×${_imgH} ` +
+        `(device: ${_screenW}×${_screenH}, ` +
+        `scale: ${(_imgW/_screenW).toFixed(3)}×${(_imgH/_screenH).toFixed(3)})`
+      )
+    } else {
+      // Dimensi sama — update nilai saja tanpa log
+      _imgW = newW
+      _imgH = newH
+    }
   }
 
   async function dumpXml() {
