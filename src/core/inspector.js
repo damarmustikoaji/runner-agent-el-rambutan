@@ -237,12 +237,25 @@ class Inspector {
   // ── Tap ───────────────────────────────────────────────────
 
   /**
-   * Tap di koordinat tertentu di device
-   * Dipakai saat user klik element dari inspector UI
+   * Tap di koordinat tertentu di device via ADB input tap
+   * Menggunakan spawnAsync langsung dengan path ADB yang sudah di-discover
    */
   async tap(serial, x, y) {
-    logger.debug(`Inspector tap: ${serial} @ (${x}, ${y})`)
-    await adbDevice(serial, ['shell', 'input', 'tap', String(x), String(y)], { timeout: 5000 })
+    logger.info(`Inspector tap: ${serial} @ (${x}, ${y})`)
+    try {
+      const { spawnAsync, getAdbPath } = require('../utils/process-utils')
+      const adbPath = getAdbPath()
+      const result  = await spawnAsync(
+        adbPath,
+        ['-s', serial, 'shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y))],
+        { timeout: 8000 }
+      )
+      logger.info(`Tap result: exit=${result.exitCode} stdout="${result.stdout}"`)
+      return { ok: result.exitCode === 0, x, y }
+    } catch (err) {
+      logger.error(`Tap failed: ${err.message}`)
+      throw new Error(`Tap gagal: ${err.message}`)
+    }
   }
 
   /**

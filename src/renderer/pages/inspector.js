@@ -927,15 +927,33 @@ window.PageInspector = (() => {
   }
 
   async function tapSelected() {
-    if (!_selectedEl?.bounds || !_serial) return
+    if (!_selectedEl?.bounds || !_serial) {
+      toast('⚠️ Pilih element dulu', 'error')
+      return
+    }
     const { centerX, centerY } = _selectedEl.bounds
-    addDebugLog('cmd', `input tap ${centerX} ${centerY}`)
+    addDebugLog('cmd', `adb -s ${_serial} shell input tap ${centerX} ${centerY}`)
+
+    // Visual feedback: disable tombol saat proses
+    const tapBtn = document.querySelector('[onclick="PageInspector.tapSelected()"]')
+    if (tapBtn) { tapBtn.disabled = true; tapBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>' }
+
     try {
-      await window.api.inspector.tap(_serial, centerX, centerY)
-      addDebugLog('pass', `Tapped @ (${centerX}, ${centerY})`)
-      setTimeout(refreshScreen, 1000)
+      const result = await window.api.inspector.tap(_serial, centerX, centerY)
+      if (result?.ok !== false) {
+        addDebugLog('pass', `✓ Tap berhasil @ (${centerX}, ${centerY})`)
+        toast(`✅ Tap @ (${centerX}, ${centerY})`)
+      } else {
+        addDebugLog('warn', `Tap dikirim tapi response tidak konfirmasi sukses`)
+        toast(`Tap terkirim @ (${centerX}, ${centerY})`)
+      }
+      // Auto-refresh screenshot setelah tap agar UI terupdate
+      setTimeout(refreshScreen, 800)
     } catch (err) {
-      addDebugLog('fail', `Tap failed: ${err.message}`)
+      addDebugLog('fail', `✗ Tap gagal: ${err.message}`)
+      toast(`Tap gagal: ${err.message}`, 'error')
+    } finally {
+      if (tapBtn) { tapBtn.disabled = false; tapBtn.innerHTML = '<i class="bi bi-hand-index-thumb"></i> Tap di Device' }
     }
   }
 

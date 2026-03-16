@@ -59,24 +59,49 @@ function getAdbPath() {
 
 /**
  * Dapatkan path Maestro CLI.
- * Maestro zip mengekstrak ke subfolder: ~/.testpilot/bin/maestro/bin/maestro
- * Kita cek beberapa kemungkinan path.
+ * Maestro zip dari GitHub bisa berubah struktur antar versi.
+ * Kita scan folder ~/.testpilot/bin/ secara rekursif untuk menemukan binary.
  */
 function getMaestroPath() {
-  const binName = process.platform === 'win32' ? 'maestro.bat' : 'maestro'
-  // Kemungkinan path setelah extract:
-  // 1. ~/.testpilot/bin/maestro           (ideal, setelah rename)
-  // 2. ~/.testpilot/bin/maestro/bin/maestro (zip subfolder default)
-  const candidates = [
-    path.join(TESTPILOT_DIR, 'bin', binName),
-    path.join(TESTPILOT_DIR, 'bin', 'maestro', 'bin', binName),
-    path.join(TESTPILOT_DIR, 'maestro', 'bin', binName),
+  const binName  = process.platform === 'win32' ? 'maestro.bat' : 'maestro'
+  const binDir   = path.join(TESTPILOT_DIR, 'bin')
+
+  // Fungsi rekursif mencari file bernama 'maestro' di dalam folder
+  function findBinary(dir, depth) {
+    if (depth > 4) return null  // max depth 4 level
+    if (!fs.existsSync(dir)) return null
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() && entry.name === binName) {
+          return path.join(dir, entry.name)
+        }
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const found = findBinary(path.join(dir, entry.name), depth + 1)
+          if (found) return found
+        }
+      }
+    } catch {}
+    return null
+  }
+
+  // 1. Scan ~/.testpilot/bin/ rekursif
+  const scanned = findBinary(binDir, 0)
+  if (scanned) return scanned
+
+  // 2. System maestro (homebrew, dll)
+  const systemPaths = [
+    '/usr/local/bin/maestro',
+    '/opt/homebrew/bin/maestro',
   ]
-  for (const p of candidates) {
+  for (const p of systemPaths) {
     if (fs.existsSync(p)) return p
   }
-  // Return path default meskipun belum ada (untuk display di UI)
-  return path.join(TESTPILOT_DIR, 'bin', binName)
+
+  // 3. Default path (belum didownload)
+  return path.join(TESTPILOT_DIR, 'bin', 'maestro', 'bin', binName)
 }
 
 /**

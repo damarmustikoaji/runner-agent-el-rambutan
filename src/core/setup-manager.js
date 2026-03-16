@@ -120,30 +120,79 @@ class SetupManager extends EventEmitter {
     })
   }
 
+  /**
+   * Cek Maestro: pisahkan "file ada" dari "bisa dijalankan"
+   *
+   * Untuk production DMG/EXE:
+   * - File existence = sudah didownload (setup selesai)
+   * - Runnability = bonus check, TIDAK menentukan ok/fail
+   *
+   * Maestro adalah shell script yang butuh Java. Di Electron (DMG),
+   * PATH tidak inherit dari terminal user, jadi exec test sering gagal
+   * meski file ada dan chmod +x sudah benar.
+   */
   async _checkMaestro() {
-    const { execFile } = require('child_process')
     const maestroPath = getMaestroPath()
+    logger.debug(`_checkMaestro: checking path=${maestroPath}`)
 
-    // getMaestroPath() sudah cek semua kandidat path
-    if (!require('fs').existsSync(maestroPath)) {
-      // Coba juga system maestro (kalau user install via brew)
-      const systemMaestro = await new Promise(resolve => {
-        execFile('maestro', ['--help'], { timeout: 5000 }, (err) => resolve(!err))
-      })
-      if (systemMaestro) return { ok: true, path: 'maestro (system)' }
-      return { ok: false, path: maestroPath }
+    // Cek apakah file ada
+    if (fs.existsSync(maestroPath)) {
+      const stat = fs.statSync(maestroPath)
+      // File ada dan punya size > 0 = VALID
+      // Executable permission juga harus ada (bit +x)
+      const isExec = !!(stat.mode & 0o111)
+      if (!isExec && process.platform !== 'win32') {
+        // Fix permission otomatis — tidak perlu user intervensi
+        try {
+          fs.chmodSync(maestroPath, 0o755)
+          logger.info(`Auto-chmod +x: ${maestroPath}`)
+        } catch (e) {
+          logger.warn(`chmod failed: ${e.message}`)
+        }
+      }
+      logger.info(`Maestro found: ${maestroPath} (${stat.size} bytes, exec=${isExec})`)
+      return { ok: true, path: maestroPath }
     }
 
-    // Binary ada, verifikasi bisa dijalankan
-    const ok = await new Promise(resolve => {
-      execFile(maestroPath, ['--help'], { timeout: 6000 }, (err) => {
-        // Maestro --help exit 0 = OK
-        // Kalau ENOENT/EACCES = tidak ada/tidak bisa exec
-        if (!err) { resolve(true); return }
-        resolve(err.code !== 'ENOENT' && err.code !== 'EACCES')
+    // Juga cek system maestro (homebrew install)
+    const systemOk = await new Promise(resolve => {
+      execFile('which', ['maestro'], { timeout: 2000 }, (err, stdout) => {
+        if (!err && stdout.trim()) { resolve(stdout.trim()); return }
+        resolve(null)
       })
     })
-    return { ok, path: maestroPath }
+    if (systemOk) return { ok: true, path: `maestro (system: ${systemOk.trim()})` }
+
+    return { ok: false, path: maestroPath }
+  }
+
+  /**
+   * Bangun environment variables untuk menjalankan Maestro
+   * Maestro adalah shell script yang butuh JAVA_HOME
+   */
+  _buildMaestroEnv() {
+    const home = require('os').homedir()
+    const env  = { ...process.env }
+
+    // Cari JAVA_HOME dari berbagai sumber
+    const javaPath = this._getJavaPath()
+    if (javaPath) {
+      // javaPath adalah path ke binary java, JAVA_HOME adalah parent dari bin/
+      const javaHome = require('path').dirname(require('path').dirname(javaPath))
+      env.JAVA_HOME = javaHome
+      env.PATH      = `${javaHome}/bin:${env.PATH || ''}`
+    }
+
+    // Tambahkan ~/.testpilot/bin ke PATH agar maestro bisa ditemukan
+    env.PATH = `${home}/.testpilot/bin:${home}/.testpilot/bin/maestro/bin:${env.PATH || ''}`
+
+    // Pastikan PATH standar macOS tersedia (Electron tidak selalu inherit full PATH)
+    const macPaths = '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'
+    if (!env.PATH.includes('/usr/local/bin')) {
+      env.PATH = `${env.PATH}:${macPaths}`
+    }
+
+    return env
   }
 
   // ── Install ────────────────────────────────────────────────
@@ -248,11 +297,12 @@ class SetupManager extends EventEmitter {
 
   /**
    * Download dan install Maestro CLI
+   * Production-safe: bekerja dari DMG/EXE tanpa terminal
    */
   async installMaestro() {
     const check = await this._checkMaestro()
     if (check.ok) {
-      this._emit('done', 'maestro', 100, 'Maestro sudah tersedia')
+      this._emit('done', 'maestro', 100, `Maestro sudah tersedia: ${check.path}`)
       return
     }
 
@@ -263,20 +313,66 @@ class SetupManager extends EventEmitter {
     const tmpZip   = path.join(DIRS.cache, 'maestro.zip')
 
     logger.info(`Downloading Maestro from: ${url}`)
-    await this._download(url, tmpZip, pct => this._emit('progress', 'maestro', pct, `Mendownload Maestro... ${pct}%`))
+    await this._download(url, tmpZip, pct =>
+      this._emit('progress', 'maestro', pct, `Mendownload Maestro... ${pct}%`)
+    )
 
-    this._emit('progress', 'maestro', 92, 'Mengekstrak Maestro...')
+    this._emit('progress', 'maestro', 90, 'Mengekstrak Maestro...')
+
+    // Extract ZIP
     const zip = new AdmZip(tmpZip)
     zip.extractAllTo(DIRS.bin, true)
-    fs.unlinkSync(tmpZip)
+    try { fs.unlinkSync(tmpZip) } catch {}
 
-    // Set executable permission di Unix
+    this._emit('progress', 'maestro', 95, 'Mengatur permission...')
+
+    // Set chmod +x menggunakan Node.js murni — tidak butuh shell command
+    // Bekerja di DMG/EXE tanpa terminal
+    if (platform !== 'win32') {
+      this._chmodRecursive(DIRS.bin, 0o755)
+    }
+
+    // Verifikasi
     const maestroPath = getMaestroPath()
-    if (fs.existsSync(maestroPath) && platform !== 'win32') {
-      fs.chmodSync(maestroPath, 0o755)
+    const exists = fs.existsSync(maestroPath)
+    logger.info(`Maestro install done. Path: ${maestroPath}, exists: ${exists}`)
+
+    if (!exists) {
+      // Log isi folder untuk debug
+      try {
+        const { spawnAsync } = require('../utils/process-utils')
+        const { stdout } = await spawnAsync('find', [DIRS.bin, '-name', 'maestro'], { timeout: 5000 })
+          .catch(() => ({ stdout: '' }))
+        logger.warn(`Maestro binary not at expected path. find output:\n${stdout}`)
+      } catch {}
     }
 
     this._emit('done', 'maestro', 100, '✅ Maestro CLI terinstall')
+  }
+
+  /**
+   * Rekursif chmod menggunakan Node.js fs — tidak butuh shell
+   * Aman dipakai dari dalam DMG/EXE
+   */
+  _chmodRecursive(dirPath, mode) {
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name)
+        try {
+          if (entry.isDirectory()) {
+            this._chmodRecursive(fullPath, mode)
+          } else {
+            fs.chmodSync(fullPath, mode)
+            logger.debug(`chmod ${mode.toString(8)}: ${fullPath}`)
+          }
+        } catch (e) {
+          logger.warn(`chmod skip ${fullPath}: ${e.message}`)
+        }
+      }
+    } catch (e) {
+      logger.warn(`_chmodRecursive failed for ${dirPath}: ${e.message}`)
+    }
   }
 
   // ── Utils ──────────────────────────────────────────────────

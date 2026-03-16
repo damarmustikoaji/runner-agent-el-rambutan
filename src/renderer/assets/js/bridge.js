@@ -43,6 +43,7 @@
     setup: {
       checkDeps:   tp ? ipc(tp.setup.checkDeps)  : noop,
       install:     tp ? ipc(tp.setup.install)     : noop,
+      fixMaestro:  tp ? ipc(tp.setup.fixMaestro)  : noop,
       onProgress:  tp ? (cb) => tp.setup.onProgress(cb) : (cb) => {},
     },
 

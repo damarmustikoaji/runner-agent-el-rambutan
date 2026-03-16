@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('testpilot', {
   setup: {
     checkDeps:      ()         => ipcRenderer.invoke('setup:checkDeps'),
     install:        (step)     => ipcRenderer.invoke('setup:install', step),
+    fixMaestro:     ()         => ipcRenderer.invoke('setup:fixMaestro'),
     onProgress:     (cb)       => ipcRenderer.on('setup:progress', (_, d) => cb(d)),
   },
 

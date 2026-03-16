@@ -286,15 +286,94 @@ window.PageSetup = (() => {
       for (const [key, result] of Object.entries(_depsStatus)) {
         updateStep(key, result.ok ? 'done' : 'wait')
       }
+
+      // Maestro khusus: kalau file ada tapi tidak ok, tampilkan tombol fix permission
+      const maestro = _depsStatus.maestro
+      if (maestro && !maestro.ok && maestro.path && maestro.path !== '/Users/damar/.testpilot/bin/maestro') {
+        // path bukan default = file sudah didownload tapi gagal exec
+        _showMaestroFixButton(maestro.path)
+      } else if (maestro && !maestro.ok) {
+        // Default path — cek apakah subfolder maestro/bin/maestro ada
+        _showMaestroFixButton(maestro.path)
+      }
+
       _setupDone = _depsStatus.adb?.ok && _depsStatus.java?.ok && _depsStatus.maestro?.ok
       if (_setupDone) {
-        const doneBox = document.getElementById('setup-done-box')
+        const doneBox  = document.getElementById('setup-done-box')
         const startBtn = document.getElementById('setup-start-btn')
         if (doneBox) doneBox.style.display = 'block'
         if (startBtn) startBtn.style.display = 'none'
       }
     } catch (err) {
       console.warn('[setup] checkDeps error:', err)
+    }
+  }
+
+  function _showMaestroFixButton(maestroPath) {
+    const el = document.getElementById('setup-step-maestro')
+    if (!el) return
+    // Tambah info dan tombol fix di bawah step maestro
+    const existing = document.getElementById('maestro-fix-hint')
+    if (existing) return  // sudah ada
+
+    const hint = document.createElement('div')
+    hint.id = 'maestro-fix-hint'
+    hint.style.cssText = 'margin-top:6px'
+    hint.innerHTML = `
+      <div style="background:var(--yellow-bg);border:1px solid rgba(196,125,14,.2);border-radius:7px;padding:8px 11px;font-size:11px;color:var(--text2)">
+        <i class="bi bi-exclamation-triangle-fill" style="color:var(--yellow)"></i>
+        File Maestro ada di <code style="font-size:10px;font-family:monospace">${esc(maestroPath)}</code>
+        tapi tidak bisa dieksekusi.
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" style="background:var(--yellow);color:#fff;border:none"
+            onclick="PageSetup.fixMaestroPermission()">
+            <i class="bi bi-wrench"></i> Fix Permission (+x)
+          </button>
+          <button class="btn btn-d btn-sm" onclick="PageSetup.startInstallStep('maestro')">
+            <i class="bi bi-arrow-repeat"></i> Install Ulang
+          </button>
+        </div>
+      </div>`
+    el.after(hint)
+  }
+
+  async function fixMaestroPermission() {
+    toast('🔧 Fixing Maestro permission...')
+    try {
+      const result = await window.api.setup.fixMaestro()
+      if (result?.ok) {
+        const hint = document.getElementById('maestro-fix-hint')
+        if (hint) hint.remove()
+        toast('✅ Permission diperbaiki! Cek ulang status...')
+        await checkDeps()
+      } else {
+        toast(`Gagal: ${result?.error || 'unknown'}`, 'error')
+      }
+    } catch (err) {
+      toast(`Error: ${err.message}`, 'error')
+    }
+  }
+
+  async function startInstallStep(step) {
+    // Install ulang satu step saja
+    _installing = true
+    try {
+      window.api.setup.onProgress((payload) => {
+        const { step: s, status, pct, msg } = payload
+        if (status === 'start')         updateStep(s, 'active', 0, msg)
+        else if (status === 'progress') {
+          const pb = document.getElementById('pbar-' + s)
+          if (pb) pb.style.width = pct + '%'
+        }
+        else if (status === 'done')     updateStep(s, 'done', 100, msg)
+        else if (status === 'error')    updateStep(s, 'error', 0, msg)
+      })
+      await window.api.setup.install(step)
+      await checkDeps()
+    } catch (err) {
+      toast(`Install ${step} gagal: ${err.message}`, 'error')
+    } finally {
+      _installing = false
     }
   }
 

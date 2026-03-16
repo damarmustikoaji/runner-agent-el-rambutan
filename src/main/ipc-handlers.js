@@ -36,24 +36,49 @@ function registerAllHandlers(win) {
 
   // ── Setup ──────────────────────────────────────────────────
   handle('setup:checkDeps', async () => {
-    return getSetupManager().checkAll()
+    const result = await getSetupManager().checkAll()
+    // Log detail Maestro untuk debug
+    const fs   = require('fs')
+    const path = require('path')
+    const os   = require('os')
+    const binDir = path.join(os.homedir(), '.testpilot', 'bin')
+    if (fs.existsSync(binDir)) {
+      const { spawnAsync } = require('../utils/process-utils')
+      const { stdout } = await spawnAsync('find', [binDir, '-type', 'f'], { timeout: 3000 }).catch(() => ({ stdout: '' }))
+      logger.info(`~/.testpilot/bin contents:\n${stdout}`)
+    }
+    return result
   })
 
   handle('setup:install', async (_, step) => {
     const sm = getSetupManager()
-
-    // Forward progress events ke renderer
     const listener = (payload) => win.webContents.send('setup:progress', payload)
     sm.on('progress', listener)
-
     try {
-      if (step === 'all')     await sm.installAll()
-      else if (step === 'adb')    await sm.installAdb()
-      else if (step === 'java')   await sm.installJava()
-      else if (step === 'maestro')await sm.installMaestro()
+      if (step === 'all')          await sm.installAll()
+      else if (step === 'adb')     await sm.installAdb()
+      else if (step === 'java')    await sm.installJava()
+      else if (step === 'maestro') await sm.installMaestro()
       return { ok: true }
     } finally {
       sm.off('progress', listener)
+    }
+  })
+
+  // Fix Maestro permission — panggil dari UI jika maestro ada tapi tidak executable
+  handle('setup:fixMaestro', async () => {
+    const fs   = require('fs')
+    const path = require('path')
+    const os   = require('os')
+    const { spawnAsync } = require('../utils/process-utils')
+    const binDir = path.join(os.homedir(), '.testpilot', 'bin')
+    try {
+      await spawnAsync('find', [binDir, '-type', 'f', '-exec', 'chmod', '+x', '{}', ';'], { timeout: 10000 })
+      logger.info('Maestro permissions fixed')
+      return { ok: true }
+    } catch (err) {
+      logger.error('fixMaestro failed:', err.message)
+      return { ok: false, error: err.message }
     }
   })
 
