@@ -34,6 +34,7 @@ window.PageInspector = (() => {
   let _nextStepId   = 1
 
   const ACTS = {
+    launch:           { l:'Buka App',        f:['package'] },
     tap:              { l:'Tap',             f:['selector','note'] },
     longPress:        { l:'Long Press',      f:['selector','note'] },
     input:            { l:'Ketik Teks',      f:['selector','value','note'] },
@@ -48,7 +49,7 @@ window.PageInspector = (() => {
     screenshot:       { l:'Screenshot',      f:['name','note'] },
   }
   const ACT_ICONS = {
-    tap:'hand-index', longPress:'hand-index-thumb',
+    launch:'rocket-takeoff', tap:'hand-index', longPress:'hand-index-thumb',
     input:'keyboard', clearText:'eraser', swipe:'arrows-move', scroll:'arrow-down-up',
     assertText:'check-circle', assertVisible:'eye', assertNotVisible:'eye-slash',
     wait:'hourglass-split', back:'arrow-left-circle', screenshot:'camera',
@@ -210,9 +211,6 @@ window.PageInspector = (() => {
               </span>
               <button class="btn btn-xs btn-gh" onclick="PageInspector.refreshScreen()" title="Refresh screenshot">
                 <i class="bi bi-arrow-clockwise"></i>
-              </button>
-              <button class="btn btn-xs btn-gh" onclick="PageInspector.launchApp()" title="Launch app">
-                <i class="bi bi-play-btn"></i>
               </button>
             </div>
           </div>
