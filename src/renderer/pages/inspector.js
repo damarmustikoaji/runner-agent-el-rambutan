@@ -107,42 +107,63 @@ window.PageInspector = (() => {
               <div id="device-list">${renderDeviceList()}</div>
             </div>
 
-            <!-- Package & Activity — always visible, tidak hidden -->
-            <div style="background:var(--surface2);border-radius:7px;padding:8px 10px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">
-                  <i class="bi bi-box"></i> Target App
-                </span>
-                <button class="btn btn-xs btn-d" onclick="PageInspector.detectActiveApp()" id="btn-detect-app"
-                  title="Auto-detect app yang sedang berjalan di foreground">
-                  <i class="bi bi-magic"></i> Detect
-                </button>
+            <!-- Package & Activity — collapsible seperti Config -->
+            <div style="background:var(--surface2);border-radius:7px;overflow:hidden">
+              <!-- Header — klik untuk toggle -->
+              <div style="display:flex;align-items:center;justify-content:space-between;
+                           padding:7px 10px;cursor:pointer;user-select:none"
+                   onclick="PageInspector.toggleTargetApp()">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">
+                    <i class="bi bi-box"></i> Target App
+                  </span>
+                  <!-- Tampilkan package saat collapsed -->
+                  <span id="target-app-summary" style="font-size:10px;font-family:var(--font-mono);
+                    color:var(--text2);${AppState.inspector.pkg ? '' : 'display:none'}">
+                    ${esc(AppState.inspector.pkg || '')}
+                  </span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <button class="btn btn-xs btn-d" onclick="event.stopPropagation();PageInspector.detectActiveApp()"
+                    id="btn-detect-app" title="Auto-detect app yang sedang berjalan">
+                    <i class="bi bi-magic"></i> Detect
+                  </button>
+                  <i class="bi bi-chevron-down" id="target-app-chevron"
+                    style="font-size:10px;color:var(--text3);transition:transform .15s;
+                    transform:${AppState.inspector._targetAppOpen !== false ? 'rotate(0deg)' : 'rotate(-90deg)'}"></i>
+                </div>
               </div>
-              <!-- Package name input + detect -->
-              <div style="display:flex;gap:5px;align-items:center;margin-bottom:5px">
-                <input type="text" id="cfg-pkg" style="flex:1;font-size:11px;font-family:var(--font-mono)"
-                  placeholder="com.example.app"
-                  value="${AppState.inspector.pkg||''}"
-                  oninput="AppState.inspector.pkg=this.value;PageInspector.onPkgChange(this.value)">
-              </div>
-              <!-- Activity row -->
-              <div style="display:flex;gap:5px;align-items:center">
-                <select id="cfg-activity" style="flex:1;font-size:10px;font-family:var(--font-mono)"
-                  onchange="AppState.inspector.activity=this.value">
-                  <option value="">-- Activity (opsional) --</option>
-                  ${(AppState.inspector.activities||[]).map(a=>`
-                    <option value="${esc(a)}" ${AppState.inspector.activity===a?'selected':''}>
-                      ${esc(a.split('/').pop())}
-                    </option>`).join('')}
-                </select>
-                <button class="btn btn-xs btn-d" onclick="PageInspector.loadActivities()" title="Load daftar activity">
-                  <i class="bi bi-arrow-clockwise"></i>
-                </button>
-              </div>
-              <!-- Active app info badge -->
-              <div id="active-app-info" style="display:none;margin-top:6px">
-                <div style="background:var(--green-bg);border:1px solid rgba(42,157,92,.2);border-radius:5px;padding:4px 8px;font-size:10px;font-family:var(--font-mono);color:var(--green)">
-                  <i class="bi bi-check-circle-fill"></i> <span id="active-app-text"></span>
+
+              <!-- Body — collapsible -->
+              <div id="target-app-body" style="padding:0 10px 10px;
+                display:${AppState.inspector._targetAppOpen !== false ? 'block' : 'none'}">
+                <!-- Package name -->
+                <div style="margin-bottom:5px">
+                  <input type="text" id="cfg-pkg" style="width:100%;font-size:11px;font-family:var(--font-mono)"
+                    placeholder="com.example.app"
+                    value="${AppState.inspector.pkg||''}"
+                    oninput="AppState.inspector.pkg=this.value;PageInspector.onPkgChange(this.value)">
+                </div>
+                <!-- Activity -->
+                <div style="display:flex;gap:5px;align-items:center">
+                  <select id="cfg-activity" style="flex:1;font-size:10px;font-family:var(--font-mono)"
+                    onchange="AppState.inspector.activity=this.value">
+                    <option value="">-- Activity (opsional) --</option>
+                    ${(AppState.inspector.activities||[]).map(a=>`
+                      <option value="${esc(a)}" ${AppState.inspector.activity===a?'selected':''}>
+                        ${esc(a.split('/').pop())}
+                      </option>`).join('')}
+                  </select>
+                  <button class="btn btn-xs btn-d" onclick="PageInspector.loadActivities()" title="Load activities">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                </div>
+                <!-- Active app badge -->
+                <div id="active-app-info" style="display:none;margin-top:6px">
+                  <div style="background:var(--green-bg);border:1px solid rgba(42,157,92,.2);
+                    border-radius:5px;padding:4px 8px;font-size:10px;font-family:var(--font-mono);color:var(--green)">
+                    <i class="bi bi-check-circle-fill"></i> <span id="active-app-text"></span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -478,6 +499,10 @@ window.PageInspector = (() => {
 
       <!-- Action buttons -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-d btn-sm" onclick="PageInspector.tapSelected()"
+          title="Kirim tap ke device di koordinat tengah element">
+          <i class="bi bi-hand-index-thumb"></i> Tap di Device
+        </button>
         ${selectors[0] ? `
         <button class="btn btn-b btn-sm" onclick="PageInspector.useSelector('${esc(selectors[0].value)}')">
           <i class="bi bi-plus-lg"></i> Tambah ke Steps
@@ -529,6 +554,26 @@ window.PageInspector = (() => {
     const nCls = st==='pass'?'sn-pass' : st==='fail'?'sn-fail' : st==='run'?'sn-run' : ''
     const rCls = st==='pass'?'sr-pass' : st==='fail'?'sr-fail' : st==='run'?'sr-run' : ''
 
+    // Status badge per step
+    const statusBadge = st === 'pass' ? `
+      <div title="Step berhasil" style="display:flex;align-items:center;gap:3px;
+        background:#dcfce7;border:1px solid rgba(34,197,94,.3);border-radius:4px;
+        padding:1px 6px;font-size:9px;font-weight:600;color:#16a34a;flex-shrink:0">
+        <i class="bi bi-check-circle-fill"></i> PASS
+      </div>` :
+    st === 'fail' ? `
+      <div title="Step gagal" style="display:flex;align-items:center;gap:3px;
+        background:#fee2e2;border:1px solid rgba(239,68,68,.3);border-radius:4px;
+        padding:1px 6px;font-size:9px;font-weight:600;color:#dc2626;flex-shrink:0">
+        <i class="bi bi-x-circle-fill"></i> FAIL
+      </div>` :
+    st === 'run' ? `
+      <div title="Sedang berjalan" style="display:flex;align-items:center;gap:3px;
+        background:#dbeafe;border:1px solid rgba(59,130,246,.3);border-radius:4px;
+        padding:1px 6px;font-size:9px;font-weight:600;color:#2563eb;flex-shrink:0">
+        <i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> RUN
+      </div>` : ''
+
     const fields = (cfg.f || []).map(f => {
       const fc = FLD_CFG[f]; if (!fc) return ''
       const val = (step.params && step.params[f]) || ''
@@ -548,18 +593,25 @@ window.PageInspector = (() => {
     }).join('')
 
     return `
-    <div class="step-row ${rCls}" id="sr-${step.id}">
+    <div class="step-row ${rCls}" id="sr-${step.id}" style="
+      ${st==='fail' ? 'border-left:3px solid #dc2626;' :
+        st==='pass' ? 'border-left:3px solid #16a34a;' :
+        st==='run'  ? 'border-left:3px solid #2563eb;' :
+                      'border-left:3px solid transparent;'}">
       <div class="step-drag"><i class="bi bi-grip-vertical"></i></div>
       <div class="step-n ${nCls}">${idx+1}</div>
-      <div class="step-fields">
-        <div class="field">
-          <label class="fl">Aksi</label>
-          <select style="min-width:130px" onchange="PageInspector.updateAction(${step.id},this.value)">
-            ${Object.entries(ACTS).map(([k,a]) =>
-              `<option value="${k}" ${step.action===k?'selected':''}>${a.l}</option>`).join('')}
-          </select>
+      <div class="step-fields" style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0">
+            <label class="fl">Aksi</label>
+            <select style="min-width:130px" onchange="PageInspector.updateAction(${step.id},this.value)">
+              ${Object.entries(ACTS).map(([k,a]) =>
+                `<option value="${k}" ${step.action===k?'selected':''}>${a.l}</option>`).join('')}
+            </select>
+          </div>
+          ${fields.replace(/<div class="field">/g, '<div class="field" style="margin-bottom:0">')}
+          ${statusBadge}
         </div>
-        ${fields}
       </div>
       <button class="step-del" onclick="PageInspector.deleteStep(${step.id})">
         <i class="bi bi-x"></i>
@@ -933,29 +985,35 @@ window.PageInspector = (() => {
     }
   }
 
+  function toggleTargetApp() {
+    const body    = document.getElementById('target-app-body')
+    const chevron = document.getElementById('target-app-chevron')
+    const summary = document.getElementById('target-app-summary')
+    if (!body) return
+
+    const isOpen = body.style.display !== 'none'
+    body.style.display    = isOpen ? 'none' : 'block'
+    if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)'
+    if (summary) summary.style.display   = isOpen ? 'inline' : 'none'
+    AppState.inspector._targetAppOpen = !isOpen
+  }
+
   async function tapSelected() {
     if (!_selectedEl?.bounds || !_serial) {
-      toast('⚠️ Pilih element dulu', 'error')
+      toast('⚠️ Pilih element dulu dari XML Tree atau screenshot', 'error')
       return
     }
     const { centerX, centerY } = _selectedEl.bounds
     addDebugLog('cmd', `adb -s ${_serial} shell input tap ${centerX} ${centerY}`)
 
-    // Visual feedback: disable tombol saat proses
     const tapBtn = document.querySelector('[onclick="PageInspector.tapSelected()"]')
     if (tapBtn) { tapBtn.disabled = true; tapBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>' }
 
     try {
-      const result = await window.api.inspector.tap(_serial, centerX, centerY)
-      if (result?.ok !== false) {
-        addDebugLog('pass', `✓ Tap berhasil @ (${centerX}, ${centerY})`)
-        toast(`✅ Tap @ (${centerX}, ${centerY})`)
-      } else {
-        addDebugLog('warn', `Tap dikirim tapi response tidak konfirmasi sukses`)
-        toast(`Tap terkirim @ (${centerX}, ${centerY})`)
-      }
-      // Auto-refresh screenshot setelah tap agar UI terupdate
-      setTimeout(refreshScreen, 800)
+      await window.api.inspector.tap(_serial, centerX, centerY)
+      addDebugLog('pass', `✓ Tap terkirim @ (${centerX}, ${centerY})`)
+      toast(`Tap @ (${centerX}, ${centerY})`)
+      setTimeout(refreshScreen, 1000)
     } catch (err) {
       addDebugLog('fail', `✗ Tap gagal: ${err.message}`)
       toast(`Tap gagal: ${err.message}`, 'error')
@@ -1174,9 +1232,10 @@ window.PageInspector = (() => {
     addDebugLog('info', `Package: ${pkg}`)
     addDebugLog('cmd', `maestro --device ${_serial} test [tmp.yaml]`)
 
-    // Switch ke tab DSL Preview sebentar agar user bisa lihat YAML yang dijalankan
-    _editorTab = 'dsl'
-    refreshEditor()
+    // Tetap di tab Steps agar user bisa lihat status per-step live
+    // Switch ke Debug tab untuk lihat log
+    _leftTab = 'debug'
+    refreshLeftTab()
 
     try {
       await window.api.runner.run({
@@ -1195,7 +1254,9 @@ window.PageInspector = (() => {
       toast(`❌ Steps gagal: ${err.message}`, 'error')
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-play-fill"></i> Run Steps' }
+      // Kembali ke Steps tab setelah selesai agar user lihat hasil per-step
       _editorTab = 'steps'
+      refreshEditor()
       refreshScreen()
     }
   }
@@ -1365,11 +1426,12 @@ window.PageInspector = (() => {
   return {
     render, connectDevice, selectDevice, refreshScreen,
     launchApp, tapSelected, loadPackages, selectPackage,
-    handleApkUpload, useSelector, toggleConfig,
+    handleApkUpload, useSelector, toggleConfig, toggleTargetApp,
     addStep, deleteStep, updateAction, updateParam,
     switchLeftTab, switchEditorTab, exportDSL, saveToTC,
     runSteps, selectElement, hoverElement, unhoverElement,
     onScreenClick, onScreenHover, onScreenLeave,
     detectActiveApp, loadActivities, onPkgChange,
+    fixMaestroPermission, startInstallStep,
   }
 })()
