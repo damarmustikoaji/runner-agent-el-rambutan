@@ -72,10 +72,7 @@ window.PageInspector = (() => {
     content.className = 'content-area no-pad'
 
     ta.innerHTML = `
-      <button class="btn btn-d btn-sm" onclick="PageInspector.connectDevice()">
-        <i class="bi bi-phone-fill"></i> Connect Device
-      </button>
-      <div class="tb-div"></div>
+      <span id="step-count" style="font-size:11px;color:var(--text3);margin-right:4px"></span>
       <button class="btn btn-g btn-sm" id="btn-run-steps" onclick="PageInspector.runSteps()">
         <i class="bi bi-play-fill"></i> Run Steps
       </button>
@@ -136,7 +133,7 @@ window.PageInspector = (() => {
 
               <!-- Body — collapsible -->
               <div id="target-app-body" style="padding:0 10px 10px;
-                display:${AppState.inspector._targetAppOpen !== false ? 'block' : 'none'}">
+                display:${AppState.inspector._targetAppOpen !== false ? 'none' : 'block'}">
                 <!-- Package name -->
                 <div style="margin-bottom:5px">
                   <input type="text" id="cfg-pkg" style="width:100%;font-size:11px;font-family:var(--font-mono)"
@@ -593,12 +590,20 @@ window.PageInspector = (() => {
     }).join('')
 
     return `
-    <div class="step-row ${rCls}" id="sr-${step.id}" style="
-      ${st==='fail' ? 'border-left:3px solid #dc2626;' :
-        st==='pass' ? 'border-left:3px solid #16a34a;' :
-        st==='run'  ? 'border-left:3px solid #2563eb;' :
-                      'border-left:3px solid transparent;'}">
-      <div class="step-drag"><i class="bi bi-grip-vertical"></i></div>
+    <div class="step-row ${rCls}" id="sr-${step.id}"
+      draggable="true"
+      ondragstart="PageInspector.onStepDragStart(event, ${step.id})"
+      ondragover="PageInspector.onStepDragOver(event)"
+      ondrop="PageInspector.onStepDrop(event, ${step.id})"
+      ondragend="PageInspector.onStepDragEnd(event)"
+      style="cursor:default;
+        ${st==='fail' ? 'border-left:3px solid #dc2626;' :
+          st==='pass' ? 'border-left:3px solid #16a34a;' :
+          st==='run'  ? 'border-left:3px solid #2563eb;' :
+                        'border-left:3px solid transparent;'}">
+      <div class="step-drag" style="cursor:grab" title="Drag untuk reorder">
+        <i class="bi bi-grip-vertical"></i>
+      </div>
       <div class="step-n ${nCls}">${idx+1}</div>
       <div class="step-fields" style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -617,6 +622,54 @@ window.PageInspector = (() => {
         <i class="bi bi-x"></i>
       </button>
     </div>`
+  }
+
+  // ── Drag-drop reorder ──────────────────────────────────────
+  let _dragId = null
+
+  function onStepDragStart(event, stepId) {
+    _dragId = stepId
+    event.dataTransfer.effectAllowed = 'move'
+    // Visual: opacity turun saat drag
+    const el = document.getElementById(`sr-${stepId}`)
+    if (el) setTimeout(() => el.style.opacity = '0.4', 0)
+  }
+
+  function onStepDragOver(event) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    // Highlight row yang jadi target drop
+    const row = event.currentTarget
+    if (row) row.style.outline = '2px solid var(--blue)'
+  }
+
+  function onStepDrop(event, targetId) {
+    event.preventDefault()
+    const row = event.currentTarget
+    if (row) row.style.outline = ''
+
+    if (_dragId === null || _dragId === targetId) return
+
+    const fromIdx = _steps.findIndex(s => s.id === _dragId)
+    const toIdx   = _steps.findIndex(s => s.id === targetId)
+    if (fromIdx < 0 || toIdx < 0) return
+
+    // Reorder array
+    const moved = _steps.splice(fromIdx, 1)[0]
+    _steps.splice(toIdx, 0, moved)
+
+    _dragId = null
+    refreshEditor()
+    toast('↕ Steps diurutkan ulang')
+  }
+
+  function onStepDragEnd(event) {
+    // Reset semua visual
+    document.querySelectorAll('.step-row').forEach(r => {
+      r.style.opacity = ''
+      r.style.outline = ''
+    })
+    _dragId = null
   }
 
   function renderDslView() {
@@ -1199,7 +1252,12 @@ window.PageInspector = (() => {
 
   function updateStepCount() {
     const el = document.getElementById('step-count')
-    if (el) el.textContent = `${_steps.length} steps`
+    if (el) {
+      el.textContent = _steps.length ? `${_steps.length} steps` : ''
+    }
+    // Juga update tab header
+    const tabCount = document.querySelector('.insp-R .tab-count')
+    if (tabCount) tabCount.textContent = _steps.length
   }
 
   // ── Run steps ──────────────────────────────────────────────
@@ -1432,5 +1490,6 @@ window.PageInspector = (() => {
     runSteps, selectElement, hoverElement, unhoverElement,
     onScreenClick, onScreenHover, onScreenLeave,
     detectActiveApp, loadActivities, onPkgChange,
+    onStepDragStart, onStepDragOver, onStepDrop, onStepDragEnd,
   }
 })()

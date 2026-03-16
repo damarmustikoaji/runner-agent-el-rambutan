@@ -148,7 +148,7 @@ class TestRunner extends EventEmitter {
 
       this._process = spawn(maestroPath, args, { env })
 
-      let currentStep = 0
+      let currentStep      = 0   // step yang sedang berjalan (1-based)
       let injectErrorShown = false
 
       // ── stdout ─────────────────────────────────────────
@@ -157,27 +157,37 @@ class TestRunner extends EventEmitter {
         for (const line of lines) {
           logger.debug(`[maestro] ${line}`)
 
-          // Filter Java stacktrace lines — terlalu verbose, sembunyikan dari user
-          if (line.match(/^\s+at [a-zA-Z]/) || line.includes('CoroutineScheduler') || line.includes('kotlinx.coroutines')) {
-            continue
-          }
+          // Filter Java stacktraces
+          if (line.match(/^\s+at [a-zA-Z]/) || line.includes('CoroutineScheduler')) continue
 
-          // Deteksi INJECT_EVENTS di stdout juga
+          // INJECT_EVENTS
           if (!injectErrorShown && line.includes('INJECT_EVENTS')) {
             injectErrorShown = true
             this._emitLog('fail', '❌ INJECT_EVENTS: Maestro driver belum terinstall di device.')
-            this._emitLog('warn', '🔄 Coba aktifkan "No Reinstall Driver" OFF (default), lalu Run lagi agar Maestro install driver otomatis.')
+            this._emitLog('warn', '🔄 Klik "Install Driver Sekarang" di banner merah, lalu Run lagi.')
             continue
           }
 
           const parsed = this._parseMaestroLine(line)
           this._emitLog(parsed.type, parsed.msg)
-          if (parsed.stepIndex !== undefined) {
-            currentStep = parsed.stepIndex
+
+          // Step start: naikkan counter dan emit 'running'
+          if (parsed.stepStart) {
+            currentStep++
             this.emit('runner:stepUpdate', {
               runId: this._runId, tcId: config.tcId,
               stepIndex: currentStep,
-              stepStatus: parsed.type === 'fail' ? 'fail' : 'running',
+              stepStatus: 'running',
+              msg: parsed.msg,
+            })
+          }
+
+          // Step done: emit pass/fail untuk step saat ini
+          if (parsed.stepDone && currentStep > 0) {
+            this.emit('runner:stepUpdate', {
+              runId: this._runId, tcId: config.tcId,
+              stepIndex: currentStep,
+              stepStatus: parsed.stepResult,
               msg: parsed.msg,
             })
           }
@@ -296,30 +306,44 @@ class TestRunner extends EventEmitter {
   }
 
   /**
-   * Parse satu baris output Maestro → {type, msg, stepIndex?}
+   * Parse output Maestro line by line.
+   * Maestro output format:
+   *   "Tap on text: Animation..."   → step starting
+   *   "COMPLETED"                   → step passed
+   *   "FAILED"                      → step failed
+   *   "Element not found: ..."      → failure detail
    */
   _parseMaestroLine(line) {
-    // Maestro output patterns:
-    // "✅ Tap on text: Login"
-    // "❌ Failed to find element: id/btn_login"
-    // "  > Flow: Login Flow"
-    // "Running on device: Pixel 7"
+    const t = line.trim()
 
-    if (line.includes('✅') || line.toLowerCase().includes('passed')) {
-      const stepMatch = line.match(/step[:\s]+(\d+)/i)
-      return {
-        type: 'pass',
-        msg:  line.trim(),
-        stepIndex: stepMatch ? parseInt(stepMatch[1]) : undefined,
-      }
+    // Step completion
+    if (t === 'COMPLETED' || t.startsWith('✅')) {
+      return { type: 'pass', msg: t, stepDone: true, stepResult: 'pass' }
     }
-    if (line.includes('❌') || line.toLowerCase().includes('failed') || line.toLowerCase().includes('error')) {
-      return { type: 'fail', msg: line.trim() }
+    if (t === 'FAILED' || t.startsWith('❌')) {
+      return { type: 'fail', msg: t, stepDone: true, stepResult: 'fail' }
     }
-    if (line.toLowerCase().includes('warning') || line.toLowerCase().includes('warn')) {
-      return { type: 'warn', msg: line.trim() }
+
+    // Step starting — Maestro prints "Tap on ...", "Launch app ...", "Assert ..."
+    const stepStartPatterns = [
+      /^Tap on /i, /^Launch app /i, /^Input text/i, /^Assert /i,
+      /^Scroll /i, /^Swipe /i, /^Press key/i, /^Wait /i, /^Take screenshot/i,
+      /^Long press/i, /^Clear text/i,
+    ]
+    const isStepStart = stepStartPatterns.some(p => p.test(t))
+    if (isStepStart) {
+      return { type: 'info', msg: t, stepStart: true }
     }
-    return { type: 'info', msg: line.trim() }
+
+    // Error detail
+    if (t.toLowerCase().includes('element not found') ||
+        t.toLowerCase().includes('error') && !t.includes('WARNING')) {
+      return { type: 'fail', msg: t }
+    }
+    if (t.toLowerCase().includes('warning') || t.toLowerCase().includes('warn')) {
+      return { type: 'warn', msg: t }
+    }
+    return { type: 'info', msg: t }
   }
 
   /**
