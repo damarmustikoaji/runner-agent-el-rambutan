@@ -17,6 +17,11 @@
   window.navigate = function(page, options = {}) {
     if (!PAGES[page]) { console.warn('[router] unknown page:', page); return }
 
+    // Stop device poll jika meninggalkan setup
+    if (AppState.currentPage === 'setup' && page !== 'setup') {
+      AppState.emit('page-leaving-setup')
+    }
+
     AppState.currentPage = page
 
     // Update sidebar active state

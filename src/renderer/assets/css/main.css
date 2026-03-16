@@ -10,7 +10,7 @@ body {
 
 /* ── Shell ────────────────────────────────── */
 #app-shell { display: flex; height: 100vh; }
-.main-area  { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.main-area  { flex: 1; display: flex; flex-direction: column; min-width: 0; margin-top: 35px; }
 .content-area {
   flex: 1; overflow-y: auto; padding: 14px;
   display: flex; flex-direction: column;
@@ -23,6 +23,7 @@ body {
   background: var(--surface); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; overflow: hidden;
   transition: width .2s cubic-bezier(.4,0,.2,1);
+  margin-top: 35px;
 }
 .sidebar.collapsed { width: var(--sb-col); }
 .sb-header {

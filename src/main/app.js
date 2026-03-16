@@ -19,7 +19,9 @@ async function createApp() {
     minWidth:     1280,
     minHeight:    800,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    trafficLightPosition: { x: 14, y: 14 },
+    // Posisi traffic lights: x=16 dari kiri, y=16 agar center di header 48px
+    // (48 - 16 diameter) / 2 = 16px top)
+    trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#f7f7f5',
     show: false,   // jangan show dulu sebelum ready-to-show
     webPreferences: {
