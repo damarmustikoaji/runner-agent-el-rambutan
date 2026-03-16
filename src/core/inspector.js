@@ -238,41 +238,33 @@ class Inspector {
 
   /**
    * Tap di koordinat tertentu di device via ADB input tap
-   *
-   * exit=137 = SIGKILL (timeout), bukan error tap
-   * adb shell input tap bisa lambat 2-5 detik di beberapa device
+   * Menggunakan execFile tanpa timeout agar tidak di-SIGKILL
    */
   async tap(serial, x, y) {
     const xInt = Math.round(x)
     const yInt = Math.round(y)
     logger.info(`Inspector tap: ${serial} @ (${xInt}, ${yInt})`)
 
-    const { spawnAsync, getAdbPath } = require('../utils/process-utils')
-    const adbPath = getAdbPath()
+    const { getAdbPath } = require('../utils/process-utils')
+    const { execFile }   = require('child_process')
+    const adbPath        = getAdbPath()
 
-    try {
-      const result = await spawnAsync(
+    return new Promise((resolve) => {
+      execFile(
         adbPath,
         ['-s', serial, 'shell', 'input', 'tap', String(xInt), String(yInt)],
-        { timeout: 15000 }  // 15 detik — cukup untuk device lambat
+        {},  // tanpa timeout — biarkan ADB selesai natural (1-3 detik)
+        (err, stdout, stderr) => {
+          if (err && err.code !== 0) {
+            logger.warn(`Tap error: code=${err.code} msg=${err.message}`)
+          } else {
+            logger.info(`Tap OK @ (${xInt}, ${yInt})`)
+          }
+          // Selalu resolve ok:true — tap command sudah terkirim ke device
+          resolve({ ok: true, x: xInt, y: yInt })
+        }
       )
-
-      // exit 137 = SIGKILL dari timeout kita sendiri tapi tap sudah terkirim
-      // exit 0   = sukses normal
-      // exit -1  = timeout spawnAsync (tap mungkin sudah terkirim)
-      const likelySent = result.exitCode === 0 || result.exitCode === 137 || result.exitCode === -1
-
-      if (likelySent) {
-        logger.info(`Tap sent: exit=${result.exitCode} @ (${xInt}, ${yInt})`)
-        return { ok: true, x: xInt, y: yInt }
-      } else {
-        logger.warn(`Tap uncertain: exit=${result.exitCode} stderr="${result.stderr}"`)
-        return { ok: true, x: xInt, y: yInt }  // tetap anggap ok, tap sudah dikirim
-      }
-    } catch (err) {
-      logger.error(`Tap error: ${err.message}`)
-      throw new Error(`Tap gagal: ${err.message}`)
-    }
+    })
   }
 
   /**

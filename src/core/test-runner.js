@@ -140,9 +140,9 @@ class TestRunner extends EventEmitter {
         '--device', config.serial,
         'test',
         yamlPath,
-        '--format', 'plain',   // output tanpa ANSI color codes
+        '--no-ansi',   // disable ANSI color codes agar output bersih di log
       ]
-      if (config.noReset) args.push('--no-reset')
+      if (config.noReset) args.push('--no-reinstall-driver')
 
       this._process = spawn(maestroPath, args, { env })
 

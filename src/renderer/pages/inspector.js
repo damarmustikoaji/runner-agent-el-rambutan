@@ -655,20 +655,32 @@ window.PageInspector = (() => {
   // Overlay = layer transparan tepat di atas gambar
 
   function _getDeviceCoords(event) {
-    if (!_imgW || !_imgH) return null
-    const overlay = document.getElementById('screen-overlay')
-    if (!overlay) return null
-    // getBoundingClientRect lebih reliable karena offsetX berubah saat
-    // event.target adalah child element (hl-box)
-    const rect = overlay.getBoundingClientRect()
-    const relX = event.clientX - rect.left
-    const relY = event.clientY - rect.top
-    if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) return null
-    return {
-      devX: Math.round(relX * _screenW / rect.width),
-      devY: Math.round(relY * _screenH / rect.height),
-      relX, relY
-    }
+    // Gunakan screen-img langsung sebagai referensi koordinat
+    // Lebih reliable daripada overlay karena img tidak punya children
+    const img = document.getElementById('screen-img')
+    if (!img || img.style.display === 'none') return null
+    if (!_imgW || !_imgH || !_screenW || !_screenH) return null
+
+    const imgRect = img.getBoundingClientRect()
+
+    // Koordinat relatif terhadap image element
+    const relX = event.clientX - imgRect.left
+    const relY = event.clientY - imgRect.top
+
+    // Pastikan klik dalam batas gambar
+    if (relX < 0 || relY < 0 || relX > imgRect.width || relY > imgRect.height) return null
+
+    // Scale ke device coordinates
+    // imgRect.width = rendered width (misal 158px)
+    // _screenW = device actual width (misal 720px)
+    const devX = Math.round(relX * _screenW / imgRect.width)
+    const devY = Math.round(relY * _screenH / imgRect.height)
+
+    logger.debug && addDebugLog('info',
+      `Coords: click=(${Math.round(relX)},${Math.round(relY)}) img=${Math.round(imgRect.width)}×${Math.round(imgRect.height)} → dev=(${devX},${devY})`
+    )
+
+    return { devX, devY, relX, relY }
   }
 
   function _onScreenClick(event) {
@@ -839,7 +851,8 @@ window.PageInspector = (() => {
       img.onload = () => {
         // Tunggu 2 frame agar browser selesai layout & paint
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          _updateImgDimensions()
+          _updateImgDimensions()   // set overlay size + pointer-events:auto
+          _attachScreenEvents()    // re-attach click/hover ke overlay (ukuran sudah benar)
           renderHighlights()
         }))
       }
@@ -876,14 +889,15 @@ window.PageInspector = (() => {
     const wrap    = document.getElementById('screen-wrap')
     if (overlay && wrap) {
       const wrapRect = wrap.getBoundingClientRect()
-      // Hitung offset gambar relatif terhadap wrap (center-aligned)
       const offsetLeft = rect.left - wrapRect.left
       const offsetTop  = rect.top  - wrapRect.top
       overlay.style.left   = offsetLeft + 'px'
       overlay.style.top    = offsetTop  + 'px'
       overlay.style.width  = rect.width  + 'px'
       overlay.style.height = rect.height + 'px'
-      overlay.style.pointerEvents = 'none'
+      // CRITICAL: pointer-events harus 'auto' agar click/hover diterima!
+      overlay.style.pointerEvents = 'auto'
+      overlay.style.cursor        = 'crosshair'
     }
 
     addDebugLog('info',
