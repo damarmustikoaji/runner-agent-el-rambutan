@@ -46,6 +46,10 @@
       activeProj: null,
     },
 
+    // ── Active TC editing (dari Projects → Inspector)
+    activeTcId:   null,   // TC id yang sedang diedit di Inspector
+    activeTcName: null,   // nama TC untuk display
+
     // ── Subscribers
     _subs: {},
 

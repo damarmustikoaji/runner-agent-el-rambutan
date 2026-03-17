@@ -152,9 +152,10 @@ window.PageProjects = (() => {
             ${_section ? `<span style="font-size:10px;color:var(--text3);margin-left:8px">${tcs.length} test case</span>` : ''}
           </div>
           <div style="display:flex;gap:6px">
-            ${_section ? `
-              <button class="btn btn-d btn-sm" onclick="PageProjects.showModal('tc')">
-                <i class="bi bi-plus-lg"></i> Test Case
+            ${(_section || _suite) ? `
+              <button class="btn btn-p btn-sm" onclick="PageProjects.goToInspector()"
+                title="Buat test case baru di Inspector">
+                <i class="bi bi-search"></i> Buat di Inspector
               </button>` : ''}
           </div>
         </div>
@@ -231,9 +232,11 @@ window.PageProjects = (() => {
             `<div style="text-align:center;padding:40px 20px;color:var(--text3)">
               <i class="bi bi-file-earmark-x" style="font-size:2rem;display:block;margin-bottom:10px;opacity:.4"></i>
               <div style="font-size:13px;font-weight:600;margin-bottom:4px">Belum ada test case</div>
-              <div style="font-size:11px;margin-bottom:16px">Tambahkan test case pertama di section ini</div>
-              <button class="btn btn-p btn-sm" onclick="PageProjects.showModal('tc')">
-                <i class="bi bi-plus-lg"></i> Test Case Baru
+              <div style="font-size:11px;margin-bottom:16px;line-height:1.6">
+                Buat skenario di <b>Inspector & Editor</b>,<br>lalu klik <b>Simpan ke TC</b>
+              </div>
+              <button class="btn btn-p btn-sm" onclick="PageProjects.goToInspector()">
+                <i class="bi bi-search"></i> Buka Inspector
               </button>
             </div>`) :
             `<div style="text-align:center;padding:60px 20px;color:var(--text3)">
@@ -531,9 +534,27 @@ window.PageProjects = (() => {
     render(); toast('Test case dihapus')
   }
 
-  function openInInspector(tcId) {
+  function goToInspector() {
+    // Clear active TC — mode buat baru
+    AppState.activeTcId   = null
+    AppState.activeTcName = null
     navigate('inspector')
-    toast('💡 Buka Inspector & tambahkan steps, lalu klik Simpan ke TC')
+    toast('Buat skenario di Inspector, lalu klik Simpan ke TC')
+  }
+
+  async function openInInspector(tcId) {
+    // Set active TC — Inspector akan tahu ini mode edit/update
+    try {
+      const tc = await window.api.db.getTestCaseById(tcId)
+      AppState.activeTcId   = tcId
+      AppState.activeTcName = tc?.name || 'Test Case'
+      navigate('inspector')
+      toast(`✏️ Mode edit: "${tc?.name}" — klik Simpan ke TC untuk update`)
+    } catch (e) {
+      AppState.activeTcId   = tcId
+      AppState.activeTcName = null
+      navigate('inspector')
+    }
   }
 
   async function previewDSL(tcId) {
@@ -583,7 +604,7 @@ window.PageProjects = (() => {
     showModal, saveModal, closeModal,
     newProject, newSuite, newSection, newTC,
     deleteProject, deleteSection, deleteTC,
-    openInInspector, previewDSL,
+    goToInspector, openInInspector, previewDSL,
   }
 })()
 /* pages/testrun.js */

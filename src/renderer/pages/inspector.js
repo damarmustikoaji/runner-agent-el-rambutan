@@ -78,9 +78,29 @@ window.PageInspector = (() => {
       <button class="btn btn-d btn-sm" onclick="PageInspector.exportDSL()">
         <i class="bi bi-download"></i> Export DSL
       </button>
-      <button class="btn btn-d btn-sm" onclick="PageInspector.saveToTC()">
-        <i class="bi bi-save"></i> Simpan ke TC
+      <button class="btn btn-d btn-sm" id="btn-save-tc" onclick="PageInspector.saveToTC()"
+        style="${AppState.activeTcId ? 'border-color:var(--green);color:var(--green)' : ''}">
+        <i class="bi bi-${AppState.activeTcId ? 'arrow-repeat' : 'save'}"></i>
+        ${AppState.activeTcId ? `Update TC` : 'Simpan ke TC'}
       </button>`
+
+    // Banner edit mode kalau ada activeTcId
+    if (AppState.activeTcId && AppState.activeTcName) {
+      const banner = document.createElement('div')
+      banner.id = 'edit-mode-banner'
+      banner.style.cssText = `background:#f0faf5;border-bottom:1px solid rgba(42,157,92,.2);
+        padding:6px 14px;font-size:11px;color:var(--green);display:flex;align-items:center;gap:8px;
+        flex-shrink:0`
+      banner.innerHTML = `
+        <i class="bi bi-pencil-fill"></i>
+        <span>Mode Edit: <b>${esc(AppState.activeTcName)}</b> — ubah steps lalu klik <b>Update TC</b></span>
+        <button onclick="AppState.activeTcId=null;AppState.activeTcName=null;PageInspector.render()"
+          style="margin-left:auto;background:none;border:none;cursor:pointer;
+            color:var(--green);font-size:12px;opacity:.7">
+          <i class="bi bi-x"></i> Batalkan edit
+        </button>`
+      document.getElementById('content-area').prepend(banner)
+    }
 
     content.innerHTML = `
     <div class="insp-wrap">
@@ -1463,7 +1483,13 @@ window.PageInspector = (() => {
 
     const pkg = AppState.inspector?.pkg || ''
 
-    // Load projects dari DB
+    // ── Mode Update (dari Projects → openInInspector) ──────────
+    if (AppState.activeTcId) {
+      _showUpdateModal(AppState.activeTcId, AppState.activeTcName, pkg)
+      return
+    }
+
+    // ── Mode Create baru ───────────────────────────────────────
     let projects = []
     try {
       projects = await window.api.db.getProjects()
@@ -1471,9 +1497,114 @@ window.PageInspector = (() => {
       toast('Gagal load projects: ' + e.message, 'error')
       return
     }
-
-    // Tampilkan modal pilih tujuan simpan
     _showSaveModal(projects, pkg)
+  }
+
+  async function _showUpdateModal(tcId, tcName, pkg) {
+    const overlay = document.createElement('div')
+    overlay.id = 'save-tc-modal'
+    overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;
+      display:flex;align-items:center;justify-content:center`
+
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border-radius:14px;padding:24px;width:420px;
+        max-width:92vw;box-shadow:var(--sh3);border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+          <div style="width:36px;height:36px;background:#f0faf5;border-radius:9px;
+            display:flex;align-items:center;justify-content:center;color:var(--green)">
+            <i class="bi bi-arrow-repeat" style="font-size:16px"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:700">Update Test Case</div>
+            <div style="font-size:11px;color:var(--text3)">${_steps.length} steps · ${pkg || 'no package'}</div>
+          </div>
+          <button onclick="document.getElementById('save-tc-modal').remove()"
+            style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:2px 6px">✕</button>
+        </div>
+
+        <!-- TC info -->
+        <div style="background:var(--green-bg);border:1px solid rgba(42,157,92,.2);border-radius:8px;
+          padding:10px 12px;margin-bottom:16px;font-size:12px">
+          <div style="font-weight:600;color:var(--green);margin-bottom:2px">
+            <i class="bi bi-check-circle"></i> Akan mengupdate:
+          </div>
+          <div style="color:var(--text2)">${esc(tcName || tcId)}</div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">
+            Nama Test Case
+          </label>
+          <input type="text" id="stc-name" value="${esc(tcName||'')}" style="width:100%" autocomplete="off">
+        </div>
+
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">
+            Deskripsi (opsional)
+          </label>
+          <textarea id="stc-desc" rows="2" style="width:100%;resize:none"
+            placeholder="Deskripsi singkat..."></textarea>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-d" onclick="document.getElementById('save-tc-modal').remove()">Batal</button>
+          <button class="btn btn-g" onclick="PageInspector._doUpdateTC('${esc(tcId)}')">
+            <i class="bi bi-arrow-repeat"></i> Update Test Case
+          </button>
+        </div>
+      </div>`
+
+    document.body.appendChild(overlay)
+    setTimeout(() => document.getElementById('stc-name')?.focus(), 50)
+    overlay.addEventListener('keydown', e => {
+      if (e.key === 'Enter') PageInspector._doUpdateTC(tcId)
+      if (e.key === 'Escape') overlay.remove()
+    })
+  }
+
+  async function _doUpdateTC(tcId) {
+    const name = document.getElementById('stc-name')?.value.trim()
+    const desc = document.getElementById('stc-desc')?.value.trim() || ''
+
+    if (!name) {
+      toast('⚠️ Nama wajib diisi', 'error'); return
+    }
+
+    document.getElementById('save-tc-modal')?.remove()
+
+    try {
+      const pkg  = AppState.inspector?.pkg || ''
+      const dsl  = generateDSL({ name, package: pkg, appId: pkg }, _steps)
+      await window.api.db.saveTestCase({
+        id:          tcId,
+        name,
+        description: desc,
+        dsl_yaml:    dsl,
+        steps_yaml:  dsl,
+        steps_count: _steps.length,
+        status:      'pending',
+      })
+
+      // Clear edit mode
+      AppState.activeTcId   = null
+      AppState.activeTcName = null
+
+      toast(`✅ Test Case "${name}" berhasil diupdate!`, 'success')
+      addDebugLog('pass', `TC updated: ${name}`)
+
+      // Update tombol di topbar
+      const btn = document.getElementById('btn-save-tc')
+      if (btn) {
+        btn.style.borderColor = ''
+        btn.style.color = ''
+        btn.innerHTML = '<i class="bi bi-save"></i> Simpan ke TC'
+      }
+      // Hapus banner edit mode
+      document.getElementById('edit-mode-banner')?.remove()
+
+    } catch (err) {
+      toast(`Gagal update: ${err.message}`, 'error')
+    }
   }
 
   function _showSaveModal(projects, pkg) {
@@ -1513,7 +1644,7 @@ window.PageInspector = (() => {
           </label>
           <input type="text" id="stc-name" placeholder="Misal: Login dengan email valid"
             style="width:100%" autocomplete="off"
-            value="Test Case">
+            value="${pkg ? pkg.split('.').pop() + ' flow' : 'Test Case'}">
         </div>
 
         <!-- Description -->
@@ -1627,16 +1758,21 @@ window.PageInspector = (() => {
     if (!sectionEl) return
 
     if (suiteId === '__new__') {
-      // Inline: buat suite baru
-      const name = await _inlineInput('Nama suite baru:', 'Regression Suite')
-      if (!name) return
       const projId = document.getElementById('stc-project')?.value
       if (!projId) return
+      const name = await _inlineInput('Nama suite baru:', 'Regression Suite')
+      if (!name) {
+        // Reset dropdown
+        document.getElementById('stc-suite').value = ''
+        return
+      }
       const suite = await window.api.db.saveSuite({ project_id: projId, name })
       toast(`✅ Suite "${name}" dibuat`)
       await _onSaveProjChange(projId)
-      document.getElementById('stc-suite').value = suite.id
-      await _onSaveSuiteChange(suite.id)
+      const suiteEl = document.getElementById('stc-suite')
+      if (suiteEl) suiteEl.value = suite.id
+      // Load sections untuk suite baru
+      await _loadSectionsForSuite(suite.id, sectionEl)
       return
     }
 
@@ -1646,6 +1782,11 @@ window.PageInspector = (() => {
       return
     }
 
+    await _loadSectionsForSuite(suiteId, sectionEl)
+  }
+
+  async function _loadSectionsForSuite(suiteId, sectionEl) {
+    if (!sectionEl) return
     sectionEl.innerHTML = '<option value="">Memuat...</option>'
     sectionEl.disabled  = true
     try {
@@ -1655,6 +1796,24 @@ window.PageInspector = (() => {
         ${sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
         <option value="__new__">+ Buat section baru</option>`
       sectionEl.disabled = false
+
+      // Handle pilih "+ Buat section baru" dari dropdown
+      sectionEl.onchange = async () => {
+        if (sectionEl.value === '__new__') {
+          const name = await _inlineInput('Nama section baru:', 'Section 1')
+          if (!name) { sectionEl.value = ''; return }
+          const sec = await window.api.db.saveSection({ suite_id: suiteId, name })
+          toast(`✅ Section "${name}" dibuat`)
+          // Tambah ke dropdown dan pilih
+          const opt = document.createElement('option')
+          opt.value = sec.id
+          opt.text  = esc(name)
+          // insert sebelum "+ Buat section baru"
+          const newOpt = sectionEl.querySelector('option[value="__new__"]')
+          sectionEl.insertBefore(opt, newOpt)
+          sectionEl.value = sec.id
+        }
+      }
     } catch (e) {
       sectionEl.innerHTML = '<option value="">Gagal load sections</option>'
     }
@@ -1830,6 +1989,6 @@ window.PageInspector = (() => {
     detectActiveApp, loadActivities, onPkgChange,
     onStepDragStart, onStepDragOver, onStepDrop, onStepDragEnd,
     // saveToTC helpers — dipanggil dari inline HTML modal
-    _onSaveProjChange, _onSaveSuiteChange, _doSaveTC,
+    _onSaveProjChange, _onSaveSuiteChange, _doSaveTC, _doUpdateTC,
   }
 })()
