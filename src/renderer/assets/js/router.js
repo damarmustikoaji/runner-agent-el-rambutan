@@ -7,7 +7,7 @@
     dashboard:    { title: 'Dashboard',          fn: () => window.PageDashboard?.render() },
     inspector:    { title: 'Inspector & Editor', fn: () => window.PageInspector?.render() },
     projects:     { title: 'Projects',           fn: () => window.PageProjects?.render() },
-    testrun:      { title: 'Test Run / Plan',    fn: () => window.PageTestRun?.render() },
+    testrun:      { title: 'Test Run',    fn: () => window.PageTestRun?.render() },
     reports:      { title: 'Reports & History',  fn: () => window.PageReports?.render() },
     environments: { title: 'Environments',       fn: () => window.PageEnvironments?.render() },
     settings:     { title: 'Settings',           fn: () => window.PageSettings?.render() },
