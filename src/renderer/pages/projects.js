@@ -794,20 +794,27 @@ window.PageTestRun = (() => {
               </div>`}
         </div>
 
-        <!-- Run Log -->
-        <div style="height:150px;flex-shrink:0;border-top:1px solid var(--border);
-          background:#0d1117;display:flex;flex-direction:column">
-          <div style="padding:4px 12px;background:#161b22;border-bottom:1px solid #30363d;
-            display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <!-- Run Log — resizable -->
+        <div style="min-height:120px;max-height:40vh;height:200px;flex-shrink:0;
+          border-top:1px solid var(--border);background:#0d1117;
+          display:flex;flex-direction:column;resize:vertical;overflow:auto">
+          <div style="padding:5px 12px;background:#161b22;border-bottom:1px solid #30363d;
+            display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+            position:sticky;top:0;z-index:1">
             <span style="font-size:10px;font-weight:600;color:#8b949e">
               <i class="bi bi-terminal"></i> Run Log
             </span>
-            <button onclick="document.getElementById('main-log').innerHTML=''"
-              style="background:none;border:none;cursor:pointer;color:#8b949e;font-size:10px">Clear</button>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span id="log-count" style="font-size:9px;color:#8b949e"></span>
+              <button onclick="document.getElementById('main-log').innerHTML='';document.getElementById('log-count').textContent=''"
+                style="background:none;border:none;cursor:pointer;color:#8b949e;font-size:10px;
+                  padding:2px 6px;border-radius:3px">Clear</button>
+            </div>
           </div>
-          <div id="main-log" style="flex:1;overflow-y:auto;padding:8px 12px;
-            font-family:var(--font-mono);font-size:10px;line-height:1.8;color:#e6edf3">
-            <div style="color:#8b949e">Log muncul saat test berjalan...</div>
+          <div id="main-log" style="flex:1;overflow-y:auto;padding:10px 14px;
+            font-family:'Geist Mono',monospace;font-size:11px;line-height:1.9;
+            color:#e6edf3;word-break:break-all">
+            <div style="color:#8b949e;font-style:italic">Log muncul saat test berjalan...</div>
           </div>
         </div>
       </div>
@@ -960,15 +967,26 @@ window.PageTestRun = (() => {
 
     // Log helper
     const log = document.getElementById('main-log')
+    let logCount = 0
     const appendLog = (type, msg) => {
       if (!log) return
-      const first = log.querySelector('[style*="color:#8b949e"]')
-      if (first) log.innerHTML = ''
+      const placeholder = log.querySelector('div[style*="font-style:italic"]')
+      if (placeholder) log.innerHTML = ''
       const d = document.createElement('div')
       const c = {pass:'#3fb950',fail:'#f85149',warn:'#d29922',info:'#e6edf3',head:'#58a6ff'}
-      d.style.cssText = `color:${c[type]||'#e6edf3'};padding:1px 0`
-      d.textContent = `[${fmtTime()}] ${msg}`
-      log.appendChild(d); log.scrollTop = 9999
+      d.style.cssText = `color:${c[type]||'#e6edf3'};padding:1px 0;display:flex;gap:8px`
+      const ts = document.createElement('span')
+      ts.style.cssText = 'color:#8b949e;flex-shrink:0;user-select:none'
+      ts.textContent = `[${fmtTime()}]`
+      const txt = document.createElement('span')
+      txt.style.wordBreak = 'break-all'
+      txt.textContent = msg
+      d.appendChild(ts); d.appendChild(txt)
+      log.appendChild(d)
+      log.scrollTop = 9999
+      logCount++
+      const cnt = document.getElementById('log-count')
+      if (cnt) cnt.textContent = `${logCount} baris`
     }
 
     appendLog('head', `▶ ${runName} (${sel.length} TC)`)
@@ -995,6 +1013,9 @@ window.PageTestRun = (() => {
         await window.api.runner.run({
           serial, stepsYaml: dsl, tcName: tc.name, tcId: tc.id,
           envVars, noReset: false, noReinstallDriver: true,
+          evidenceDir:       ssStep || ssFail ? runFolder + '/' + tc.name.replace(/[^a-z0-9_-]/gi,'_') : null,
+          screenshotPerStep: ssStep,
+          screenshotOnFail:  ssFail,
         })
         pass++
         if (numEl)  numEl.style.background = 'var(--green)'

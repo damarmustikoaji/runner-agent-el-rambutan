@@ -114,61 +114,75 @@ class TestRunner extends EventEmitter {
   }
 
   async _spawnMaestro(maestroPath, yamlPath, config) {
-    // Build env dengan JAVA_HOME agar Maestro script bisa menemukan Java
     const home    = os.homedir()
     const javaEnv = this._buildJavaEnv()
     const env     = {
       ...process.env,
       ...javaEnv,
       ...config.envVars,
-      TERM:               'dumb',
-      // Pastikan PATH mencakup lokasi Maestro dan Java
+      TERM: 'dumb',
       PATH: [
         path.join(home, '.testpilot', 'bin', 'maestro', 'bin'),
         path.join(home, '.testpilot', 'bin'),
         javaEnv.JAVA_HOME ? path.join(javaEnv.JAVA_HOME, 'bin') : '',
-        '/usr/local/bin',
-        '/opt/homebrew/bin',
-        '/usr/bin',
-        '/bin',
+        '/usr/local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin',
         process.env.PATH || '',
       ].filter(Boolean).join(':'),
+    }
+
+    // Setup evidence directory
+    const evidenceDir = config.evidenceDir
+    const tcFolder    = evidenceDir
+      ? path.join(evidenceDir, (config.tcName||'tc').replace(/[^a-z0-9_-]/gi, '_'))
+      : null
+
+    if (tcFolder) {
+      try { fs.mkdirSync(tcFolder, { recursive: true }) } catch {}
+    }
+
+    // ADB screenshot helper
+    const { getAdbPath } = require('../utils/process-utils')
+    const { execFile }   = require('child_process')
+    const adbPath        = getAdbPath()
+
+    const captureScreenshot = (label) => {
+      if (!tcFolder || !adbPath || !config.serial) return
+      const devicePath = '/data/local/tmp/testpilot_evidence.png'
+      const localPath  = path.join(tcFolder, `${label}.png`)
+      execFile(adbPath, ['-s', config.serial, 'exec-out', 'screencap', '-p'],
+        { encoding: 'buffer', timeout: 10000 },
+        (err, stdout) => {
+          if (!err && stdout && stdout.length > 4 &&
+              stdout[0]===0x89 && stdout[1]===0x50) {
+            fs.writeFile(localPath, stdout, () =>
+              logger.debug(`Evidence screenshot: ${localPath}`)
+            )
+          }
+        }
+      )
     }
 
     return new Promise((resolve, reject) => {
       const args = [
         '--device', config.serial,
-        'test',
-        yamlPath,
-        '--no-ansi',  // disable ANSI color codes
+        'test', yamlPath, '--no-ansi',
       ]
-
-      // --no-reinstall-driver: skip reinstall Maestro driver APK (lebih cepat setelah pertama kali)
-      // noReset juga skip reinstall karena intent-nya sama: tidak modifikasi device state
       if (config.noReset || config.noReinstallDriver) {
         args.push('--no-reinstall-driver')
       }
-
-      // autoGrant: pass env variable MAESTRO_DRIVER_STARTUP_TIMEOUT dan grant permissions via adb
-      // sebelum run Maestro
       if (config.autoGrant && config.serial && config.stepsYaml) {
-        // Grant semua runtime permissions ke app target via ADB sebelum Maestro jalan
-        const { getAdbPath } = require('../utils/process-utils')
-        const { execFile }   = require('child_process')
-        const adbPath        = getAdbPath()
-        const pkg            = (config.stepsYaml.match(/^appId:\s*(\S+)/m) || [])[1]
+        const pkg = (config.stepsYaml.match(/^appId:\s*(\S+)/m) || [])[1]
         if (pkg) {
           execFile(adbPath, ['-s', config.serial, 'shell', 'pm', 'grant', pkg,
             'android.permission.READ_EXTERNAL_STORAGE'], () => {})
           execFile(adbPath, ['-s', config.serial, 'shell', 'pm', 'grant', pkg,
             'android.permission.WRITE_EXTERNAL_STORAGE'], () => {})
-          logger.info(`Auto-grant permissions for ${pkg}`)
         }
       }
 
       this._process = spawn(maestroPath, args, { env })
 
-      let currentStep      = 0   // step yang sedang berjalan (1-based)
+      let currentStep      = 0
       let injectErrorShown = false
 
       // ── stdout ─────────────────────────────────────────
@@ -202,7 +216,7 @@ class TestRunner extends EventEmitter {
             })
           }
 
-          // Step done: emit pass/fail untuk step saat ini
+          // Step done: emit pass/fail + capture screenshot evidence
           if (parsed.stepDone && currentStep > 0) {
             this.emit('runner:stepUpdate', {
               runId: this._runId, tcId: config.tcId,
@@ -210,6 +224,15 @@ class TestRunner extends EventEmitter {
               stepStatus: parsed.stepResult,
               msg: parsed.msg,
             })
+            // Screenshot per step
+            if (config.screenshotPerStep) {
+              const label = `step_${String(currentStep).padStart(2,'0')}_${parsed.stepResult}`
+              captureScreenshot(label)
+            }
+            // Screenshot saat fail
+            if (parsed.stepResult === 'fail' && config.screenshotOnFail && !config.screenshotPerStep) {
+              captureScreenshot(`step_${String(currentStep).padStart(2,'0')}_FAIL`)
+            }
           }
         }
       })
