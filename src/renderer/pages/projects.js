@@ -183,14 +183,8 @@ window.PageProjects = (() => {
                   transition:background .1s" class="tc-row">
                   <div style="font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
                   <div>
-                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-                      <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(tc.name)}</span>
-                      <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600;
-                        ${tc.status==='pass' ? 'background:#dcfce7;color:#16a34a' :
-                          tc.status==='fail' ? 'background:#fee2e2;color:#dc2626' :
-                          'background:var(--surface2);color:var(--text3)'}">
-                        ${tc.status||'pending'}
-                      </span>
+                    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">
+                      ${esc(tc.name)}
                     </div>
                     ${tc.description ? `<div style="font-size:10px;color:var(--text3);
                       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px">
