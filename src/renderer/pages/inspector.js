@@ -1649,11 +1649,14 @@ window.PageInspector = (() => {
       AppState.activeTcId   = null
       AppState.activeTcName = null
       _loadedTcId           = null
+      // Clear steps setelah update berhasil → kembali ke mode buat baru
+      _steps  = []
+      _stepSt = {}
 
       toast(`✅ Test Case "${name}" berhasil diupdate!`, 'success')
       addDebugLog('pass', `TC updated: ${name} (${_steps.length} steps)`)
 
-      // Re-render topbar + banner via render()
+      // Re-render — topbar kembali ke "Simpan ke TC", banner hilang, steps kosong
       PageInspector.render()
 
     } catch (err) {
@@ -1950,11 +1953,19 @@ window.PageInspector = (() => {
 
       document.getElementById('save-tc-modal')?.remove()
       toast(`✅ Test Case "${name}" disimpan ke Projects!`, 'success')
+      addDebugLog('pass', `TC saved: ${name} (${_steps.length} steps)`)
+
+      // Clear steps setelah simpan berhasil → siap buat TC baru
+      _steps  = []
+      _stepSt = {}
 
       // Update badge projects
       const projects = await window.api.db.getProjects().catch(() => [])
       const badge = document.getElementById('badge-projects')
       if (badge) badge.textContent = projects.length
+
+      // Re-render editor agar step list kosong
+      refreshEditor()
 
     } catch (err) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save-fill"></i> Simpan Test Case' }
@@ -2049,10 +2060,14 @@ window.PageInspector = (() => {
     // saveToTC helpers — dipanggil dari inline HTML modal
     _onSaveProjChange, _onSaveSuiteChange, _doSaveTC, _doUpdateTC,
     _cancelEditMode: function() {
+      // Batalkan edit TC — clear steps + state → kembali ke mode buat baru
       AppState.activeTcId   = null
       AppState.activeTcName = null
       _loadedTcId           = null
+      _steps                = []
+      _stepSt               = {}
       PageInspector.render()
+      toast('Edit dibatalkan — steps di-reset untuk membuat baru')
     },
   }
 })()
