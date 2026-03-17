@@ -106,28 +106,27 @@ window.PageInspector = (() => {
       <button class="btn btn-d btn-sm" id="btn-save-tc" onclick="PageInspector.saveToTC()"
         style="${AppState.activeTcId ? 'border-color:var(--green);color:var(--green)' : ''}">
         <i class="bi bi-${AppState.activeTcId ? 'arrow-repeat' : 'save'}"></i>
-        ${AppState.activeTcId ? `Update TC` : 'Simpan ke TC'}
+        ${AppState.activeTcId ? 'Update TC' : 'Simpan ke TC'}
       </button>`
 
-    // Banner edit mode kalau ada activeTcId
-    if (AppState.activeTcId && AppState.activeTcName) {
-      const banner = document.createElement('div')
-      banner.id = 'edit-mode-banner'
-      banner.style.cssText = `background:#f0faf5;border-bottom:1px solid rgba(42,157,92,.2);
-        padding:6px 14px;font-size:11px;color:var(--green);display:flex;align-items:center;gap:8px;
-        flex-shrink:0`
-      banner.innerHTML = `
+    // Banner edit mode — dirender di dalam content area (bukan prepend)
+    const editBanner = AppState.activeTcId ? `
+      <div id="edit-mode-banner" style="background:#f0faf5;border-bottom:1px solid rgba(42,157,92,.2);
+        padding:7px 14px;font-size:11px;color:var(--green);display:flex;align-items:center;gap:8px;
+        flex-shrink:0;z-index:10">
         <i class="bi bi-pencil-fill"></i>
-        <span>Mode Edit: <b>${esc(AppState.activeTcName)}</b> — ubah steps lalu klik <b>Update TC</b></span>
-        <button onclick="AppState.activeTcId=null;AppState.activeTcName=null;window.PageInspector._cancelEditMode()"
-          style="margin-left:auto;background:none;border:none;cursor:pointer;
-            color:var(--green);font-size:12px;opacity:.7">
-          <i class="bi bi-x"></i> Batalkan edit
-        </button>`
-      document.getElementById('content-area').prepend(banner)
-    }
+        <span>Mode Edit: <b>${esc(AppState.activeTcName || AppState.activeTcId)}</b>
+          — ubah steps lalu klik <b>Update TC</b></span>
+        <button onclick="window.PageInspector._cancelEditMode()"
+          style="margin-left:auto;background:none;border:1px solid rgba(42,157,92,.3);
+            border-radius:5px;cursor:pointer;color:var(--green);font-size:11px;
+            padding:2px 8px;display:flex;align-items:center;gap:4px">
+          <i class="bi bi-x-circle"></i> Batalkan edit
+        </button>
+      </div>` : ''
 
     content.innerHTML = `
+    ${editBanner}
     <div class="insp-wrap">
 
       <!-- ── LEFT: Device + Screen + Tabs ── -->
@@ -1619,14 +1618,8 @@ window.PageInspector = (() => {
       toast(`✅ Test Case "${name}" berhasil diupdate!`, 'success')
       addDebugLog('pass', `TC updated: ${name} (${_steps.length} steps)`)
 
-      // Update tombol di topbar
-      const btn = document.getElementById('btn-save-tc')
-      if (btn) {
-        btn.style.borderColor = ''
-        btn.style.color = ''
-        btn.innerHTML = '<i class="bi bi-save"></i> Simpan ke TC'
-      }
-      document.getElementById('edit-mode-banner')?.remove()
+      // Re-render topbar + banner via render()
+      PageInspector.render()
 
     } catch (err) {
       toast(`Gagal update: ${err.message}`, 'error')
@@ -2021,8 +2014,6 @@ window.PageInspector = (() => {
     // saveToTC helpers — dipanggil dari inline HTML modal
     _onSaveProjChange, _onSaveSuiteChange, _doSaveTC, _doUpdateTC,
     _cancelEditMode: function() {
-      // Hanya clear state edit TC — steps TIDAK dihapus
-      // User bisa terus edit atau buat TC baru dari steps yang ada
       AppState.activeTcId   = null
       AppState.activeTcName = null
       _loadedTcId           = null
