@@ -59,8 +59,9 @@ class Inspector {
       logger.warn(`exec-out screenshot failed: ${err.message}, trying pull method...`)
     }
 
-    // ── Metode 2: screencap ke sdcard lalu pull ────────────────
-    const devicePath = '/sdcard/testpilot_screenshot.png'
+    // ── Metode 2: screencap ke /data/local/tmp lalu pull ──────
+    // /data/local/tmp/ tidak butuh permission — aman di semua Android versi
+    const devicePath = '/data/local/tmp/testpilot_screenshot.png'
     const tmpFile    = path.join(os.tmpdir(), `testpilot_ss_${Date.now()}.png`)
 
     try {
@@ -111,55 +112,45 @@ class Inspector {
    */
   async dumpXml(serial) {
     logger.debug(`Inspector XML dump: ${serial}`)
-    const adbPath        = getAdbPath()
-    const deviceXmlPath  = '/sdcard/testpilot_ui.xml'
-    const tmpFile        = path.join(os.tmpdir(), `testpilot_ui_${Date.now()}.xml`)
+    const adbPath   = getAdbPath()
+    const tmpFile   = path.join(os.tmpdir(), `testpilot_ui_${Date.now()}.xml`)
+
+    // Android 12+ emulator: /sdcard/ butuh MANAGE_EXTERNAL_STORAGE permission
+    // /data/local/tmp/ selalu accessible oleh ADB shell tanpa permission
+    const devicePath = '/data/local/tmp/testpilot_ui.xml'
 
     try {
-      // 1. Dump UI hierarchy via uiautomator
+      // 1. uiautomator dump ke /data/local/tmp/
       const dumpResult = await spawnAsync(
-        adbPath, ['-s', serial, 'shell', 'uiautomator', 'dump', deviceXmlPath],
+        adbPath,
+        ['-s', serial, 'shell', 'uiautomator', 'dump', devicePath],
         { timeout: 15000 }
       )
       if (dumpResult.exitCode !== 0) {
-        throw new Error(`uiautomator dump failed: ${dumpResult.stderr}`)
+        throw new Error(`uiautomator dump failed: ${dumpResult.stderr || dumpResult.stdout}`)
       }
 
-      // 2a. Coba exec-out cat (lebih reliable untuk emulator, tidak butuh pull)
-      let xmlContent = null
-      try {
-        const catResult = await spawnAsync(
-          adbPath, ['-s', serial, 'exec-out', 'cat', deviceXmlPath],
-          { timeout: 10000 }
-        )
-        if (catResult.exitCode === 0 && catResult.stdout.includes('<hierarchy')) {
-          xmlContent = catResult.stdout
-          logger.debug(`XML via exec-out cat: ${xmlContent.length} chars`)
-        }
-      } catch (e) {
-        logger.warn(`exec-out cat XML failed: ${e.message}`)
-      }
+      // 2. Baca via exec-out (tidak butuh pull, tidak ada permission issue)
+      const catResult = await spawnAsync(
+        adbPath,
+        ['-s', serial, 'exec-out', 'cat', devicePath],
+        { timeout: 10000 }
+      )
 
-      // 2b. Fallback: pull ke tmpFile
-      if (!xmlContent) {
-        // Tunggu sebentar agar file flush
-        await new Promise(r => setTimeout(r, 400))
-
+      let xmlContent = catResult.stdout
+      if (!xmlContent || !xmlContent.includes('<hierarchy')) {
+        // Fallback: pull biasa
+        await new Promise(r => setTimeout(r, 300))
         const pullResult = await spawnAsync(
-          adbPath, ['-s', serial, 'pull', deviceXmlPath, tmpFile],
+          adbPath, ['-s', serial, 'pull', devicePath, tmpFile],
           { timeout: 15000 }
         )
-        if (pullResult.exitCode !== 0) {
-          throw new Error(`pull XML failed: exit=${pullResult.exitCode} ${pullResult.stderr}`)
-        }
-        if (!fs.existsSync(tmpFile)) {
-          throw new Error(`XML file tidak ada setelah pull: ${tmpFile}`)
+        if (pullResult.exitCode !== 0 || !fs.existsSync(tmpFile)) {
+          throw new Error(`Cannot read XML: ${pullResult.stderr}`)
         }
         xmlContent = fs.readFileSync(tmpFile, 'utf8')
-        logger.debug(`XML via pull: ${xmlContent.length} chars`)
       }
 
-      // 3. Parse XML → element tree
       const tree = this._parseXmlToTree(xmlContent)
       return { xml: xmlContent, tree }
 
@@ -167,9 +158,8 @@ class Inspector {
       logger.error('XML dump failed:', { serial, error: err.message })
       throw new Error(`XML dump gagal: ${err.message}`)
     } finally {
-      // Cleanup
       try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile) } catch {}
-      adbDevice(serial, ['shell', 'rm', '-f', deviceXmlPath]).catch(() => {})
+      adbDevice(serial, ['shell', 'rm', '-f', devicePath]).catch(() => {})
     }
   }
 
