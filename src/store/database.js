@@ -376,6 +376,10 @@ const TestRuns = {
     }
     return this.getById(run.id)
   },
+  delete(id) {
+    getDb().prepare('DELETE FROM tc_results WHERE run_id=?').run(id)
+    return getDb().prepare('DELETE FROM test_runs WHERE id=?').run(id)
+  },
   saveTcResult(result) {
     const id = result.id || generateId('res-')
     getDb().prepare(`

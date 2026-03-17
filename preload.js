@@ -100,6 +100,10 @@ contextBridge.exposeInMainWorld('testpilot', {
     // Test Runs
     saveRun:            (run)        => ipcRenderer.invoke('db:runs:save', run),
     getRuns:            (projectId)  => ipcRenderer.invoke('db:runs:getByProject', projectId),
+    getRunById:         (id)         => ipcRenderer.invoke('db:runs:getById', id),
+    deleteRun:          (id)         => ipcRenderer.invoke('db:runs:delete', id),
+    saveTcResult:       (r)          => ipcRenderer.invoke('db:tcresults:save', r),
+    getTcResults:       (runId)      => ipcRenderer.invoke('db:tcresults:getByRun', runId),
 
     // Environments
     getEnvs:            ()           => ipcRenderer.invoke('db:envs:getAll'),
