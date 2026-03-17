@@ -23,7 +23,19 @@ window.PageProjects = (() => {
     if (!_suite && suites.length) _suite = suites[0]
     const sections = _suite  ? await window.api.db.getSections(_suite.id)  : []
     if (!_section && sections.length) _section = sections[0]
-    const tcs      = _section ? await window.api.db.getTestCases(_section.id) : []
+
+    // Ambil TCs: dari section yang dipilih, ATAU dari suite langsung (tanpa section)
+    let tcs = []
+    if (_section) {
+      tcs = await window.api.db.getTestCases(_section.id)
+    } else if (_suite) {
+      // TCs yang disimpan langsung ke suite (dari Inspector "Simpan ke TC" tanpa section)
+      try {
+        tcs = await window.api.db.getTestCasesBySuite(_suite.id)
+      } catch (e) {
+        tcs = []
+      }
+    }
 
     content.innerHTML = `
     <div style="display:flex;height:calc(100vh - var(--tb-h));min-height:0;overflow:hidden">
@@ -151,38 +163,70 @@ window.PageProjects = (() => {
           ${_section ? (tcs.length ? `
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
               <!-- Header -->
-              <div style="display:grid;grid-template-columns:32px 1fr 100px 80px;
+              <div style="display:grid;grid-template-columns:32px 1fr 80px 70px 100px;
                 padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border)">
-                ${['#','Test Case','Status','Aksi'].map(h=>`<div style="font-size:10px;font-weight:600;color:var(--text3)">${h}</div>`).join('')}
+                ${['#','Test Case','Prioritas','Steps','Aksi'].map(h =>
+                  `<div style="font-size:10px;font-weight:600;color:var(--text3)">${h}</div>`
+                ).join('')}
               </div>
-              ${tcs.map((tc, i) => `
-                <div style="display:grid;grid-template-columns:32px 1fr 100px 80px;
+              ${tcs.map((tc, i) => {
+                const stepsCount = tc.steps_count || (tc.dsl_yaml
+                  ? tc.dsl_yaml.split('\n').filter(l => l.trim().startsWith('- ')).length : 0)
+                const prioColor = tc.priority==='high' ? '#dc2626' :
+                                  tc.priority==='low'  ? '#6b7280' : '#f97316'
+                const prioBg    = tc.priority==='high' ? '#fee2e2' :
+                                  tc.priority==='low'  ? '#f3f4f6' : '#fff7ed'
+                return `
+                <div style="display:grid;grid-template-columns:32px 1fr 80px 70px 100px;
                   padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;
                   transition:background .1s" class="tc-row">
                   <div style="font-size:11px;color:var(--text3);font-weight:600">${i+1}</div>
                   <div>
-                    <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(tc.name)}</div>
-                    ${tc.description ? `<div style="font-size:10px;color:var(--text3)">${esc(tc.description)}</div>` : ''}
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                      <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(tc.name)}</span>
+                      <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600;
+                        ${tc.status==='pass' ? 'background:#dcfce7;color:#16a34a' :
+                          tc.status==='fail' ? 'background:#fee2e2;color:#dc2626' :
+                          'background:var(--surface2);color:var(--text3)'}">
+                        ${tc.status||'pending'}
+                      </span>
+                    </div>
+                    ${tc.description ? `<div style="font-size:10px;color:var(--text3);
+                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px">
+                      ${esc(tc.description)}</div>` : ''}
                   </div>
                   <div>
                     <span style="font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;
-                      ${tc.status==='pass' ? 'background:#dcfce7;color:#16a34a' :
-                        tc.status==='fail' ? 'background:#fee2e2;color:#dc2626' :
-                        'background:var(--surface2);color:var(--text3)'}">
-                      ${tc.status||'pending'}
+                      background:${prioBg};color:${prioColor}">
+                      ${tc.priority||'medium'}
                     </span>
                   </div>
+                  <div style="font-size:11px;color:var(--text3)">
+                    ${stepsCount > 0 ? `
+                      <span style="display:flex;align-items:center;gap:3px">
+                        <i class="bi bi-list-check" style="color:var(--blue)"></i>
+                        ${stepsCount} steps
+                      </span>` : '<span style="opacity:.4">—</span>'}
+                  </div>
                   <div style="display:flex;gap:4px">
-                    <button class="btn btn-xs btn-d" onclick="PageProjects.openInInspector('${esc(tc.id)}')"
+                    ${(tc.dsl_yaml || tc.steps_yaml) ? `
+                      <button class="btn btn-xs btn-d"
+                        onclick="PageProjects.previewDSL('${esc(tc.id)}')"
+                        title="Lihat DSL YAML">
+                        <i class="bi bi-code-slash"></i>
+                      </button>` : ''}
+                    <button class="btn btn-xs btn-d"
+                      onclick="PageProjects.openInInspector('${esc(tc.id)}')"
                       title="Buka di Inspector">
                       <i class="bi bi-search"></i>
                     </button>
-                    <button class="btn btn-xs btn-danger" onclick="PageProjects.deleteTC('${esc(tc.id)}')"
+                    <button class="btn btn-xs btn-danger"
+                      onclick="PageProjects.deleteTC('${esc(tc.id)}')"
                       title="Hapus">
                       <i class="bi bi-trash3"></i>
                     </button>
                   </div>
-                </div>`).join('')}
+                </div>`}).join('')}
             </div>` :
             `<div style="text-align:center;padding:40px 20px;color:var(--text3)">
               <i class="bi bi-file-earmark-x" style="font-size:2rem;display:block;margin-bottom:10px;opacity:.4"></i>
@@ -492,6 +536,42 @@ window.PageProjects = (() => {
     toast('💡 Buka Inspector & tambahkan steps, lalu klik Simpan ke TC')
   }
 
+  async function previewDSL(tcId) {
+    let tc = null
+    try {
+      tc = await window.api.db.getTestCaseById(tcId)
+    } catch (e) { /* fallback */ }
+    const yaml = tc?.dsl_yaml || tc?.steps_yaml || '# Tidak ada DSL'
+
+    const overlay = document.createElement('div')
+    overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;
+      display:flex;align-items:center;justify-content:center`
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border-radius:12px;padding:20px;width:520px;
+        max-width:92vw;max-height:80vh;display:flex;flex-direction:column;
+        box-shadow:var(--sh3);border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:700">
+            <i class="bi bi-code-slash" style="color:var(--blue);margin-right:6px"></i>
+            DSL YAML — ${esc(tc?.name || 'Test Case')}
+          </div>
+          <button onclick="this.closest('div[style*=fixed]').remove()"
+            style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button>
+        </div>
+        <pre style="flex:1;overflow:auto;background:#0d1117;color:#e6edf3;border-radius:8px;
+          padding:14px;font-size:11px;line-height:1.7;font-family:var(--font-mono);
+          margin:0;white-space:pre-wrap;word-break:break-all">${esc(yaml)}</pre>
+        <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:6px">
+          <button class="btn btn-d btn-sm" onclick="copyText(\`${esc(yaml)}\`)">
+            <i class="bi bi-copy"></i> Copy
+          </button>
+          <button class="btn btn-d btn-sm" onclick="this.closest('div[style*=fixed]').remove()">Tutup</button>
+        </div>
+      </div>`
+    document.body.appendChild(overlay)
+    overlay.addEventListener('keydown', e => { if (e.key==='Escape') overlay.remove() })
+  }
+
   // Legacy stubs
   function newProject()        { showModal('project') }
   function newSuite()          { showModal('suite') }
@@ -502,7 +582,8 @@ window.PageProjects = (() => {
     render, selectProject, selectSuite, selectSection,
     showModal, saveModal, closeModal,
     newProject, newSuite, newSection, newTC,
-    deleteProject, deleteSection, deleteTC, openInInspector,
+    deleteProject, deleteSection, deleteTC,
+    openInInspector, previewDSL,
   }
 })()
 /* pages/testrun.js */

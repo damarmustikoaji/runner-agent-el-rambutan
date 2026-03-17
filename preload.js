@@ -91,6 +91,7 @@ contextBridge.exposeInMainWorld('testpilot', {
     saveSection:        (section)    => ipcRenderer.invoke('db:sections:save', section),
 
     // Test Cases
+    getTestCaseById:       (id)        => ipcRenderer.invoke('db:testcases:getById', id),
     getTestCases:          (sectionId) => ipcRenderer.invoke('db:testcases:getBySection', sectionId),
     getTestCasesBySuite:   (suiteId)   => ipcRenderer.invoke('db:testcases:getBySuite', suiteId),
     saveTestCase:          (tc)        => ipcRenderer.invoke('db:testcases:save', tc),

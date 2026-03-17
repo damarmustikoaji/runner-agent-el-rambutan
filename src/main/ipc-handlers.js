@@ -228,6 +228,7 @@ function registerAllHandlers(win) {
   handle('db:sections:save',       async (_, s)   => db.Sections.save(s))
 
   // ── Database: Test Cases ───────────────────────────────────
+  handle('db:testcases:getById',       async (_, id)  => db.TestCases.getById(id))
   handle('db:testcases:getBySection', async (_, sid) => db.TestCases.getBySection(sid))
   handle('db:testcases:getBySuite',   async (_, sid) => db.TestCases.getBySuite(sid))
   handle('db:testcases:save',         async (_, tc)  => db.TestCases.save(tc))

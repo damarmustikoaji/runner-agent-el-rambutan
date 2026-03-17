@@ -1513,7 +1513,7 @@ window.PageInspector = (() => {
           </label>
           <input type="text" id="stc-name" placeholder="Misal: Login dengan email valid"
             style="width:100%" autocomplete="off"
-            value="${pkg ? pkg.split('.').pop() + ' flow' : 'Test Case'}">
+            value="Test Case">
         </div>
 
         <!-- Description -->
