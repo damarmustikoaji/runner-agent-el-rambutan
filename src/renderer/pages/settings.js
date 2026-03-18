@@ -107,35 +107,24 @@ window.PageSettings = (() => {
 
       <!-- Tentang & Update -->
       <div class="card" id="about-card">
-        <div class="card-title mb12"><i class="bi bi-info-circle"></i> Tentang TestPilot</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
           <div>
-            <div style="font-size:15px;font-weight:700">TestPilot</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:2px">TestPilot</div>
             <div style="font-size:11px;color:var(--text3)">v${esc(version)}</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:3px">
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">
               Electron · better-sqlite3 · Maestro CLI · ADB
             </div>
           </div>
-          <button class="btn btn-p btn-sm" id="update-btn"
-            onclick="PageSettings.checkUpdate()">
+          <button class="btn btn-d btn-sm" id="update-btn"
+            onclick="PageSettings.checkUpdate()" style="flex-shrink:0">
             <i class="bi bi-arrow-repeat"></i> Cek Update
           </button>
         </div>
 
-        <!-- Update result placeholder -->
+        <!-- Update result — kosong sampai user klik -->
         <div id="update-result"></div>
-
-        <div style="height:1px;background:var(--border);margin:12px 0"></div>
-        <div style="font-size:10px;color:var(--text3);line-height:1.6">
-          TestPilot adalah tools automation QA berbasis Maestro CLI untuk QA non-teknis.
-          Dibuat untuk mempermudah pembuatan dan eksekusi test case Android.
-        </div>
       </div>
     </div>`
-
-    // Auto check update — tampil di area Tentang saja
-    checkUpdate()
   }
 
   // ── Binary deps renderer ────────────────────────────────────
@@ -206,11 +195,11 @@ window.PageSettings = (() => {
   }
 
   async function checkUpdate() {
-    const btn = document.getElementById('update-btn')
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i> Memeriksa...' }
-
+    const btn    = document.getElementById('update-btn')
     const result = document.getElementById('update-result')
     const version = await window.api.system.getAppVersion().catch(() => CURRENT_VERSION)
+
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i> Memeriksa...' }
 
     try {
       const res  = await fetch(VERSION_CHECK_URL, { signal: AbortSignal.timeout(10000) })
@@ -222,57 +211,52 @@ window.PageSettings = (() => {
 
       if (!latest || latest === version) {
         if (result) result.innerHTML = `
-          <div style="background:#dcfce7;border:1px solid #16a34a;border-radius:8px;
-            padding:10px 14px;display:flex;align-items:center;gap:8px">
-            <i class="bi bi-check-circle-fill" style="color:#16a34a;font-size:16px"></i>
-            <div>
-              <div style="font-size:12px;font-weight:600;color:#15803d">
-                TestPilot sudah versi terbaru!
-              </div>
-              <div style="font-size:10px;color:#166534;margin-top:2px">
-                Versi kamu: <b>v${esc(version)}</b>
-              </div>
-            </div>
+          <div style="margin-top:10px;padding:8px 12px;background:var(--green-bg);
+            border:1px solid rgba(42,157,92,.2);border-radius:7px;
+            display:flex;align-items:center;gap:7px">
+            <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
+            <span style="font-size:11px;color:var(--green);font-weight:600">
+              Sudah versi terbaru (v${esc(version)})
+            </span>
           </div>`
         return
       }
 
-      const levelCfg = {
-        critical: { bg:'#fee2e2', border:'#dc2626', icon:'bi-exclamation-octagon-fill',  color:'#dc2626', label:'🚨 Update Kritis — Harus diupdate!' },
-        major:    { bg:'#fff7ed', border:'#f97316', icon:'bi-exclamation-triangle-fill', color:'#ea580c', label:'⬆️ Update Major Tersedia' },
-        minor:    { bg:'#f0f6ff', border:'#3b7eed', icon:'bi-info-circle-fill',          color:'#2563eb', label:'ℹ️ Update Minor Tersedia' },
-      }
-      const cfg = levelCfg[data.level] || levelCfg.minor
+      const levelColor = { critical:'#dc2626', major:'#ea580c', minor:'#2563eb' }
+      const levelBg    = { critical:'#fee2e2', major:'#fff7ed', minor:'#f0f6ff' }
+      const levelBorder= { critical:'#dc2626', major:'#f97316', minor:'#3b7eed' }
+      const levelLabel = { critical:'🚨 Update Kritis', major:'⬆️ Update Major', minor:'ℹ️ Update Minor' }
+      const lv    = data.level || 'minor'
+      const color = levelColor[lv] || levelColor.minor
+      const bg    = levelBg[lv]    || levelBg.minor
+      const brd   = levelBorder[lv]|| levelBorder.minor
+      const label = levelLabel[lv] || levelLabel.minor
 
       if (result) result.innerHTML = `
-        <div style="background:${cfg.bg};border:1px solid ${cfg.border};border-radius:8px;
-          padding:12px 14px;display:flex;align-items:flex-start;gap:10px">
-          <i class="bi ${cfg.icon}" style="color:${cfg.color};font-size:18px;flex-shrink:0;margin-top:1px"></i>
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:12px;color:${cfg.color};margin-bottom:3px">
-              ${cfg.label}
-            </div>
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px">
-              ${esc(data.note || 'Versi terbaru tersedia')}
-            </div>
-            <div style="font-size:10px;color:var(--text3);margin-bottom:8px">
-              Versi kamu: <b>v${esc(version)}</b>
-              &nbsp;→&nbsp;
-              Terbaru: <b>v${esc(latest)}</b>
-              ${data.date ? `&nbsp;·&nbsp;${esc(data.date)}` : ''}
-            </div>
-            <button class="btn btn-p btn-sm" onclick="navigate('setup')">
-              <i class="bi bi-lightning-charge-fill"></i> Update via Setup Wizard
-            </button>
+        <div style="margin-top:10px;padding:12px;background:${bg};
+          border:1px solid ${brd};border-radius:8px">
+          <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:4px">
+            ${label}
           </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">
+            ${esc(data.note || 'Versi terbaru tersedia')}
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px">
+            v${esc(version)} → <b>v${esc(latest)}</b>
+            ${data.date ? `&nbsp;·&nbsp;${esc(data.date)}` : ''}
+          </div>
+          <button class="btn btn-p btn-sm" onclick="navigate('setup')">
+            <i class="bi bi-lightning-charge-fill"></i> Update via Setup Wizard
+          </button>
         </div>`
 
     } catch (err) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cek Update' }
       if (result) result.innerHTML = `
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-          padding:10px 14px;font-size:11px;color:var(--text3)">
-          <i class="bi bi-wifi-off"></i> Tidak dapat memeriksa update — cek koneksi internet.
+        <div style="margin-top:10px;padding:8px 12px;background:var(--surface2);
+          border:1px solid var(--border);border-radius:7px;
+          font-size:11px;color:var(--text3)">
+          <i class="bi bi-wifi-off"></i> Tidak dapat memeriksa — cek koneksi internet.
         </div>`
     }
   }
