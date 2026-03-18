@@ -1221,7 +1221,7 @@ window.PageInspector = (() => {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i>' }
 
     try {
-      addDebugLog('cmd', `dumpsys activity → detect foreground app`)
+      addDebugLog('cmd', `Detect foreground app → ${_serial}`)
       const result = await window.api.inspector.getActiveApp(_serial)
       if (!result) {
         toast('Tidak berhasil detect app. Pastikan app sedang terbuka.', 'error')
@@ -1229,28 +1229,37 @@ window.PageInspector = (() => {
         return
       }
 
-      // Update state
       AppState.inspector.pkg      = result.package
       AppState.inspector.activity = result.activity
-      if (!AppState.inspector.activities) AppState.inspector.activities = []
 
-      // Update UI
       const pkgInput = document.getElementById('cfg-pkg')
       if (pkgInput) pkgInput.value = result.package
 
-      // Show badge
-      const badge = document.getElementById('active-app-info')
-      const badgeText = document.getElementById('active-app-text')
-      if (badge && badgeText) {
-        badgeText.textContent = `${result.package} / ${result.activity?.split('.').pop() || result.activity}`
-        badge.style.display = 'block'
+      // iOS: tampilkan semua installed apps di dropdown
+      if (result.platform === 'ios' && result.allApps?.length) {
+        const actSel = document.getElementById('cfg-activity')
+        if (actSel) {
+          actSel.innerHTML = `<option value="">-- Bundle ID lain (${result.allApps.length} apps) --</option>` +
+            result.allApps.map(b => `<option value="${esc(b)}" ${b===result.package?'selected':''}>${esc(b)}</option>`).join('')
+          actSel.style.display = 'block'
+          actSel.onchange = () => {
+            const v = actSel.value
+            if (v && pkgInput) { pkgInput.value = v; AppState.inspector.pkg = v }
+          }
+        }
+        addDebugLog('pass', `iOS apps detected: ${result.allApps.length} installed — ${result.package} dipilih`)
+        toast(`✅ ${result.allApps.length} app terdeteksi. Pilih dari dropdown Activity.`)
+      } else {
+        const badge = document.getElementById('active-app-info')
+        const badgeText = document.getElementById('active-app-text')
+        if (badge && badgeText) {
+          badgeText.textContent = `${result.package} / ${result.activity?.split('.').pop() || result.activity}`
+          badge.style.display = 'block'
+        }
+        addDebugLog('pass', `Detected: ${result.package} / ${result.activity}`)
+        toast(`✅ ${result.package}`)
+        await loadActivities()
       }
-
-      addDebugLog('pass', `Detected: ${result.package} / ${result.activity}`)
-      toast(`✅ ${result.package}`)
-
-      // Auto-load activities
-      await loadActivities()
     } catch (err) {
       toast(`Detect gagal: ${err.message}`, 'error')
       addDebugLog('fail', `detectActiveApp error: ${err.message}`)

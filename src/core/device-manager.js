@@ -10,6 +10,11 @@ const EventEmitter = require('events')
 const { adb, adbDevice, isBinaryAvailable, getAdbPath } = require('../utils/process-utils')
 const logger = require('../utils/logger')
 
+// iOS Simulator UDID: UUID format 8-4-4-4-12
+function _isIosSim(serial) {
+  return /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(serial)
+}
+
 const POLL_INTERVAL_MS = 10000  // cek device setiap 10 detik (sebelumnya 3s — terlalu sering, ganggu uiautomator)
 
 class DeviceManager extends EventEmitter {
@@ -286,13 +291,18 @@ class DeviceManager extends EventEmitter {
   }
 
   /**
-   * Dapatkan package dan activity yang sedang aktif di foreground
-   * Cara: dumpsys window → mCurrentFocus / mFocusedApp
-   * Return: { package, activity, full } atau null
+   * Dapatkan package/bundleId app yang sedang aktif di foreground
+   * Android: dumpsys window
+   * iOS Simulator: xcrun simctl listapps + check frontmost
    */
   async getActiveApp(serial) {
+    // ── iOS Simulator ─────────────────────────────────────────
+    if (_isIosSim(serial)) {
+      return this._getActiveAppIos(serial)
+    }
+
+    // ── Android via ADB ───────────────────────────────────────
     try {
-      // Coba Android 10+ via dumpsys activity
       const { stdout: a } = await adbDevice(
         serial,
         ['shell', 'dumpsys', 'activity', 'activities', '|', 'grep', '-E', 'mResumedActivity|mCurrentFocus'],
@@ -300,14 +310,9 @@ class DeviceManager extends EventEmitter {
       )
       let pkg = null, activity = null
 
-      // Pattern: mResumedActivity: ActivityRecord{... pkg/Activity ...}
       const resumedMatch = a.match(/mResumedActivity[^\n]*?\{[^}]*\s+([\w.]+)\/([\w.]+)/)
-      if (resumedMatch) {
-        pkg      = resumedMatch[1]
-        activity = resumedMatch[2]
-      }
+      if (resumedMatch) { pkg = resumedMatch[1]; activity = resumedMatch[2] }
 
-      // Fallback: dumpsys window mCurrentFocus
       if (!pkg) {
         const { stdout: w } = await adbDevice(
           serial,
@@ -319,16 +324,60 @@ class DeviceManager extends EventEmitter {
       }
 
       if (!pkg) return null
-
-      // Normalize activity shorthand: .ActivityName → pkg.ActivityName
       if (activity && activity.startsWith('.')) activity = pkg + activity
-
       logger.info(`Active app: ${pkg}/${activity}`)
       return { package: pkg, activity, full: `${pkg}/${activity}` }
     } catch (err) {
       logger.warn('getActiveApp failed:', err.message)
       return null
     }
+  }
+
+  async _getActiveAppIos(udid) {
+    const { execFile } = require('child_process')
+    return new Promise(resolve => {
+      // xcrun simctl listapps — list semua installed apps + filter yang bukan system
+      execFile('xcrun', ['simctl', 'listapps', udid],
+        { timeout: 8000 },
+        (err, stdout) => {
+          if (err || !stdout) return resolve(null)
+          try {
+            // Output adalah plist — parse bundle IDs
+            // Cari CFBundleIdentifier dari semua apps
+            const bundleIds = []
+            const matches = stdout.matchAll(/CFBundleIdentifier\s*=\s*"([^"]+)"/g)
+            for (const m of matches) bundleIds.push(m[1])
+
+            // Filter: prioritaskan non-Apple apps (user installed)
+            const userApps = bundleIds.filter(b =>
+              !b.startsWith('com.apple.') &&
+              !b.startsWith('com.crashlytics') &&
+              b.includes('.')
+            )
+
+            // Kalau ada user app, ambil yang pertama
+            // Kalau tidak ada, fallback ke Contacts atau Safari
+            const bestGuess = userApps[0]
+              || bundleIds.find(b => b === 'com.apple.MobileAddressBook')
+              || bundleIds.find(b => b === 'com.apple.mobilesafari')
+              || bundleIds[0]
+
+            if (!bestGuess) return resolve(null)
+
+            logger.info(`iOS active app (best guess): ${bestGuess}`)
+            resolve({
+              package:  bestGuess,
+              activity: null,
+              full:     bestGuess,
+              platform: 'ios',
+              allApps:  userApps.slice(0, 20),  // untuk dropdown
+            })
+          } catch (e) {
+            logger.warn('_getActiveAppIos parse failed:', e.message)
+            resolve(null)
+          }
+        })
+    })
   }
 
   /**
