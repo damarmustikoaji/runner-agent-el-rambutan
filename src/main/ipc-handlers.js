@@ -236,6 +236,7 @@ function registerAllHandlers(win) {
 
   // ── Database: Runs ─────────────────────────────────────────
   handle('db:runs:save',         async (_, r)   => db.TestRuns.save(r))
+  handle('db:runs:getAll',        async ()       => db.TestRuns.getAll())
   handle('db:runs:getByProject', async (_, pid) => db.TestRuns.getByProject(pid))
   handle('db:runs:getById',      async (_, id)  => db.TestRuns.getById(id))
   handle('db:runs:delete',       async (_, id)  => db.TestRuns.delete(id))

@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld('testpilot', {
 
     // Test Runs
     saveRun:            (run)        => ipcRenderer.invoke('db:runs:save', run),
+    getAllRuns:          ()           => ipcRenderer.invoke('db:runs:getAll'),
     getRuns:            (projectId)  => ipcRenderer.invoke('db:runs:getByProject', projectId),
     getRunById:         (id)         => ipcRenderer.invoke('db:runs:getById', id),
     deleteRun:          (id)         => ipcRenderer.invoke('db:runs:delete', id),

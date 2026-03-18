@@ -37,25 +37,30 @@ window.PageTestRun = (() => {
         <i class="bi bi-plus-lg"></i> Test Run Baru
       </button>`
 
-    // Load runs dari project aktif
-    _runs = _selProj ? await window.api.db.getRuns(_selProj).catch(() => []) : []
+    // Load SEMUA runs dari semua project
+    _runs = await window.api.db.getAllRuns().catch(() => [])
+
+    // Buat map project id → name untuk label di kartu
+    const projMap = {}
+    _projects.forEach(p => { projMap[p.id] = p.name })
 
     content.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
 
-      <!-- Header -->
-      <div style="padding:12px 20px;border-bottom:1px solid var(--border);
-        background:var(--surface);display:flex;align-items:center;gap:12px;flex-shrink:0">
-        <select style="font-size:12px;min-width:180px" onchange="PageTestRun.switchProject(this.value)">
-          ${_projects.map(p => `<option value="${p.id}" ${p.id===_selProj?'selected':''}>${esc(p.name)}</option>`).join('')
-            || '<option>Belum ada project</option>'}
-        </select>
-        <span style="font-size:11px;color:var(--text3)">${_runs.length} run${_runs.length!==1?'s':''}</span>
+      <!-- Header minimal -->
+      <div style="padding:10px 20px;border-bottom:1px solid var(--border);
+        background:var(--surface);display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <span style="font-size:12px;font-weight:600;color:var(--text2)">
+          <i class="bi bi-list-check"></i> Semua Test Run
+        </span>
+        <span style="font-size:11px;color:var(--text3);margin-left:4px">
+          ${_runs.length} run${_runs.length!==1?'s':''}
+        </span>
       </div>
 
       <!-- Run list -->
       <div style="flex:1;overflow-y:auto;padding:16px 20px">
-        ${_runs.length ? _runs.map(r => _runCard(r)).join('') : `
+        ${_runs.length ? _runs.map(r => _runCard(r, projMap[r.project_id])).join('') : `
           <div style="text-align:center;padding:60px 20px;color:var(--text3)">
             <i class="bi bi-play-circle" style="font-size:3rem;display:block;margin-bottom:12px;opacity:.3"></i>
             <div style="font-size:14px;font-weight:600;margin-bottom:6px">Belum ada Test Run</div>
@@ -68,12 +73,12 @@ window.PageTestRun = (() => {
     </div>`
   }
 
-  function _runCard(r) {
+  function _runCard(r, projName) {
     const statusColor = r.status==='pass' ? '#16a34a' : r.status==='fail' ? '#dc2626' :
-                        r.status==='running' ? '#2563eb' : '#6b7280'
+                        r.status==='running' ? '#2563eb' : r.status==='saved' ? '#7c3aed' : '#6b7280'
     const statusBg    = r.status==='pass' ? '#dcfce7' : r.status==='fail' ? '#fee2e2' :
-                        r.status==='running' ? '#dbeafe' : '#f3f4f6'
-    const total = (r.pass||0) + (r.fail||0) + (r.skip||0)
+                        r.status==='running' ? '#dbeafe' : r.status==='saved' ? '#ede9fe' : '#f3f4f6'
+    const total = (r.pass||0) + (r.fail||0)
     const dur   = r.duration_ms ? _fmtDuration(r.duration_ms) : '—'
     const date  = r.created_at ? new Date(r.created_at).toLocaleString('id-ID',
       {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'
@@ -83,91 +88,104 @@ window.PageTestRun = (() => {
       margin-bottom:10px;background:var(--surface);cursor:pointer;transition:box-shadow .1s"
       onclick="PageTestRun.openDetail('${esc(r.id)}')"
       onmouseenter="this.style.boxShadow='var(--sh2)'" onmouseleave="this.style.boxShadow=''">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-        <div>
-          <div style="font-size:13px;font-weight:700;margin-bottom:3px">${esc(r.plan_name)}</div>
-          <div style="font-size:11px;color:var(--text3)">
-            <i class="bi bi-phone"></i> ${esc(r.device||'—')}
-            &nbsp;·&nbsp;
-            <i class="bi bi-clock"></i> ${date}
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+        <div style="flex:1;min-width:0;margin-right:10px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:3px;overflow:hidden;
+            text-overflow:ellipsis;white-space:nowrap">${esc(r.plan_name)}</div>
+          <div style="font-size:11px;color:var(--text3);display:flex;gap:8px;flex-wrap:wrap">
+            ${projName ? `<span><i class="bi bi-folder2"></i> ${esc(projName)}</span>` : ''}
+            ${r.device ? `<span><i class="bi bi-phone"></i> ${esc(r.device)}</span>` : ''}
+            <span><i class="bi bi-clock"></i> ${date}</span>
+            ${r.duration_ms ? `<span><i class="bi bi-stopwatch"></i> ${dur}</span>` : ''}
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;
             background:${statusBg};color:${statusColor};text-transform:uppercase">
-            ${r.status==='running'?'<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> ':''} ${r.status||'pending'}
+            ${r.status==='saved'?'💾 Tersimpan':r.status||'pending'}
           </span>
           <button onclick="event.stopPropagation();PageTestRun.deleteRun('${esc(r.id)}')"
             style="background:none;border:none;cursor:pointer;color:var(--text3);
-              font-size:13px;padding:2px 4px;border-radius:4px"
+              font-size:13px;padding:2px 5px;border-radius:4px;transition:color .1s"
+            onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--text3)'"
             title="Hapus run">
             <i class="bi bi-trash3"></i>
           </button>
         </div>
       </div>
       ${total ? `
-      <div style="display:flex;gap:12px">
-        <div style="display:flex;align-items:center;gap:5px">
-          <div style="width:8px;height:8px;border-radius:50%;background:#16a34a"></div>
-          <span style="font-size:11px;color:var(--text2)">${r.pass||0} PASS</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:5px">
-          <div style="width:8px;height:8px;border-radius:50%;background:#dc2626"></div>
-          <span style="font-size:11px;color:var(--text2)">${r.fail||0} FAIL</span>
-        </div>
-        ${r.skip ? `<div style="display:flex;align-items:center;gap:5px">
-          <div style="width:8px;height:8px;border-radius:50%;background:#6b7280"></div>
-          <span style="font-size:11px;color:var(--text2)">${r.skip} SKIP</span>
-        </div>` : ''}
-        <span style="font-size:11px;color:var(--text3);margin-left:auto">
-          <i class="bi bi-stopwatch"></i> ${dur}
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+        <span style="font-size:11px;color:#16a34a;font-weight:600">
+          <i class="bi bi-check-circle"></i> ${r.pass||0} PASS
         </span>
-      </div>
-      <!-- Progress bar -->
-      <div style="height:3px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden">
-        <div style="height:100%;background:#16a34a;width:${total?Math.round((r.pass||0)/total*100):0}%;
-          transition:width .3s"></div>
+        <span style="font-size:11px;color:#dc2626;font-weight:600">
+          <i class="bi bi-x-circle"></i> ${r.fail||0} FAIL
+        </span>
+        <div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="height:100%;background:#16a34a;
+            width:${Math.round((r.pass||0)/total*100)}%;transition:width .3s"></div>
+        </div>
       </div>` : ''}
     </div>`
   }
 
   // ────────────────────────────────────────────────────────────
-  // VIEW: CREATE — form buat test run baru
+  // VIEW: CREATE — form buat/susun test run
   // ────────────────────────────────────────────────────────────
   async function _renderCreate(content, ta) {
     ta.innerHTML = `
       <button class="btn btn-d btn-sm" onclick="PageTestRun.backToList()">
         <i class="bi bi-arrow-left"></i> Kembali
       </button>
+      <button class="btn btn-d btn-sm" onclick="PageTestRun.saveRunOnly()">
+        <i class="bi bi-save"></i> Simpan
+      </button>
       <button class="btn btn-p btn-sm" id="run-btn" onclick="PageTestRun.startRun()">
         <i class="bi bi-play-fill"></i> Jalankan
       </button>`
 
+    // Load TCs dari project yang dipilih
     _allTCs = _selProj ? await _getAllTCs(_selProj) : []
-    const devices    = AppState.devices || []
-    const online     = devices.filter(d => d.online)
-    const envs       = await window.api.db.getEnvs().catch(() => [])
+    const devices     = AppState.devices || []
+    const online      = devices.filter(d => d.online)
+    const envs        = await window.api.db.getEnvs().catch(() => [])
     const evidenceDir = await window.api.db.getSetting('evidence_dir').catch(() => '') || ''
     if (!_selSerial && online.length) _selSerial = AppState.connectedDevice?.serial || online[0]?.serial
 
     content.innerHTML = `
     <div style="display:flex;height:100%;overflow:hidden">
 
-      <!-- Kiri: pilih TC -->
+      <!-- Kiri: Project + TC picker -->
       <div style="width:240px;flex-shrink:0;border-right:1px solid var(--border);
         display:flex;flex-direction:column;background:var(--surface)">
-        <div style="padding:10px 12px;border-bottom:1px solid var(--border)">
-          <div style="font-size:10px;font-weight:700;color:var(--text3);
-            text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">
-            Pilih Test Case
-          </div>
-          <input type="text" id="tc-filter" style="width:100%;font-size:11px"
-            placeholder="🔍 Filter..." oninput="PageTestRun.filterTCs(this.value)">
+
+        <!-- Project selector -->
+        <div style="padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface2)">
+          <label style="font-size:10px;font-weight:700;color:var(--text3);
+            text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">
+            Project
+          </label>
+          <select style="width:100%;font-size:11px" onchange="PageTestRun.changeProject(this.value)">
+            ${_projects.length
+              ? _projects.map(p => `<option value="${p.id}" ${p.id===_selProj?'selected':''}>${esc(p.name)}</option>`).join('')
+              : '<option>Belum ada project</option>'}
+          </select>
         </div>
+
+        <!-- Search TC -->
+        <div style="padding:6px 10px;border-bottom:1px solid var(--border)">
+          <input type="text" id="tc-filter" style="width:100%;font-size:11px"
+            placeholder="🔍 Filter test case..."
+            oninput="PageTestRun.filterTCs(this.value)">
+        </div>
+
+        <!-- TC list -->
         <div id="tc-pick" style="flex:1;overflow-y:auto">${_renderPicker(_allTCs)}</div>
+
+        <!-- Footer count -->
         <div style="padding:6px 10px;border-top:1px solid var(--border);background:var(--surface2);
           display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:11px;color:var(--text3)">
+          <span style="font-size:11px;color:var(--text3)" data-sel-count>
             <i class="bi bi-check2-square"></i> ${_selTCs.size} dipilih
           </span>
           <div style="display:flex;gap:4px">
@@ -177,7 +195,7 @@ window.PageTestRun = (() => {
         </div>
       </div>
 
-      <!-- Tengah: konfigurasi -->
+      <!-- Tengah: Konfigurasi Run -->
       <div style="width:260px;flex-shrink:0;border-right:1px solid var(--border);
         overflow-y:auto;background:var(--surface)">
         <div style="padding:12px 14px;display:flex;flex-direction:column;gap:14px">
@@ -187,8 +205,8 @@ window.PageTestRun = (() => {
               text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">
               Nama Run
             </label>
-            <input type="text" id="run-name" value="Test Run"
-              style="width:100%;font-size:12px">
+            <input type="text" id="run-name" value="Test Run" style="width:100%;font-size:12px"
+              oninput="PageTestRun._planName=this.value">
           </div>
 
           <div>
@@ -232,11 +250,8 @@ window.PageTestRun = (() => {
               text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:8px">
               <i class="bi bi-folder-fill" style="color:var(--yellow)"></i> Evidence
             </label>
-
             <div style="margin-bottom:8px">
-              <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
-                Folder Simpan
-              </div>
+              <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Folder Simpan</div>
               <div style="display:flex;gap:5px">
                 <input type="text" id="ev-dir" value="${esc(evidenceDir)}"
                   placeholder="~/Desktop/testpilot-evidence" readonly
@@ -247,7 +262,6 @@ window.PageTestRun = (() => {
                   title="Pilih folder"><i class="bi bi-folder2-open"></i></button>
               </div>
             </div>
-
             <div style="display:flex;flex-direction:column;gap:5px">
               <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer">
                 <input type="checkbox" id="ev-ss-step" checked style="accent-color:var(--blue)">
@@ -263,20 +277,23 @@ window.PageTestRun = (() => {
         </div>
       </div>
 
-      <!-- Kanan: preview TC yang dipilih -->
+      <!-- Kanan: Preview TC yang dipilih -->
       <div style="flex:1;min-width:0;overflow-y:auto;padding:16px">
         <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text2)">
-          <i class="bi bi-list-check"></i> TC yang akan dijalankan (${_selTCs.size})
+          <i class="bi bi-list-check"></i> TC yang akan dijalankan
+          <span style="font-weight:400;color:var(--text3)">(${_selTCs.size})</span>
         </div>
         <div id="tc-preview">
-          ${_selTCs.size ? Array.from(_selTCs).map((id,i) => {
-              const tc = _allTCs.find(t => t.id === id)
-              return tc ? _tcPreviewRow(tc, i) : ''
-            }).join('') : `
-            <div style="text-align:center;padding:32px;color:var(--text3)">
-              <i class="bi bi-hand-index" style="font-size:1.5rem;display:block;margin-bottom:8px;opacity:.4"></i>
-              <div style="font-size:12px">Centang TC dari panel kiri</div>
-            </div>`}
+          ${_selTCs.size
+            ? Array.from(_selTCs).map((id,i) => {
+                const tc = _allTCs.find(t => t.id === id)
+                return tc ? _tcPreviewRow(tc, i) : ''
+              }).join('')
+            : `<div style="text-align:center;padding:32px;color:var(--text3)">
+                <i class="bi bi-hand-index" style="font-size:1.5rem;display:block;
+                  margin-bottom:8px;opacity:.4"></i>
+                <div style="font-size:12px">Centang TC dari panel kiri</div>
+              </div>`}
         </div>
       </div>
     </div>`
@@ -530,6 +547,53 @@ window.PageTestRun = (() => {
     _selProj = id; _selTCs.clear()
     _allTCs = await _getAllTCs(id)
     _runs   = await window.api.db.getRuns(id).catch(() => [])
+    render()
+  }
+
+  async function changeProject(id) {
+    _selProj = id; _selTCs.clear()
+    _allTCs = await _getAllTCs(id)
+    const el = document.getElementById('tc-pick')
+    if (el) el.innerHTML = _renderPicker(_allTCs)
+    const preview = document.getElementById('tc-preview')
+    if (preview) preview.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3)">
+      <i class="bi bi-hand-index" style="font-size:1.5rem;display:block;margin-bottom:8px;opacity:.4"></i>
+      <div style="font-size:12px">Centang TC dari panel kiri</div></div>`
+  }
+
+  async function saveRunOnly() {
+    const runName = document.getElementById('run-name')?.value.trim() || 'Test Run'
+    const envId   = document.getElementById('run-env')?.value
+    const envs    = await window.api.db.getEnvs().catch(() => [])
+    const env     = envs.find(e => e.id === envId)
+    const serial  = document.getElementById('run-device')?.value || _selSerial || ''
+    const devInfo = AppState.devices?.find(d => d.serial === serial)
+
+    if (!_selProj) { toast('⚠️ Pilih project dulu', 'error'); return }
+
+    const run = await window.api.db.saveRun({
+      project_id:  _selProj,
+      plan_name:   runName,
+      run_type:    'custom',
+      device:      devInfo?.model || serial || '',
+      environment: env?.name || '',
+      status:      'saved',
+    }).catch(err => { toast('Gagal simpan: ' + err.message, 'error'); return null })
+
+    if (!run) return
+
+    // Simpan TC yang dipilih sebagai tc_results dengan status pending
+    for (const tcId of _selTCs) {
+      const tc = _allTCs.find(t => t.id === tcId)
+      if (tc) {
+        await window.api.db.saveTcResult({
+          run_id: run.id, tc_id: tc.id, tc_name: tc.name, status: 'pending',
+        }).catch(() => {})
+      }
+    }
+
+    toast(`✅ Test Run "${runName}" disimpan (${_selTCs.size} TC)`)
+    _view = 'list'
     render()
   }
 
@@ -904,7 +968,8 @@ window.PageTestRun = (() => {
 
   return {
     render, openCreate, backToList, openDetail, deleteRun, reRun,
-    switchProject, selectDevice, filterTCs, togTC, selAll,
+    switchProject, changeProject, saveRunOnly,
+    selectDevice, filterTCs, togTC, selAll,
     pickEvidenceDir, startRun, toggleTcDetail,
   }
 })()

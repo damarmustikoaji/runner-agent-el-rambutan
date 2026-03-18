@@ -351,6 +351,9 @@ const TestCases = {
 // ── Test Runs ─────────────────────────────────────────────────
 
 const TestRuns = {
+  getAll() {
+    return getDb().prepare('SELECT * FROM test_runs ORDER BY created_at DESC LIMIT 100').all()
+  },
   getByProject(projectId) {
     return getDb().prepare('SELECT * FROM test_runs WHERE project_id=? ORDER BY created_at DESC LIMIT 50').all(projectId)
   },

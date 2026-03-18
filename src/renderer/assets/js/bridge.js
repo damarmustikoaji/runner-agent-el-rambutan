@@ -101,6 +101,7 @@
       saveTestCase:         tp ? w(function(tc)  { return tp.db.saveTestCase(tc) })           : noop,
       deleteTestCase:  tp ? w(function(id)  { return tp.db.deleteTestCase(id) })     : noop,
       saveRun:         tp ? w(function(r)   { return tp.db.saveRun(r) })             : noop,
+      getAllRuns:       tp ? w(function()    { return tp.db.getAllRuns() })            : noopArr,
       getRuns:         tp ? w(function(id)  { return tp.db.getRuns(id) })            : noopArr,
       getRunById:      tp ? w(function(id)  { return tp.db.getRunById(id) })         : noop,
       deleteRun:       tp ? w(function(id)  { return tp.db.deleteRun(id) })          : noop,
