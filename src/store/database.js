@@ -374,7 +374,7 @@ const TestRuns = {
         INSERT INTO test_runs (id, project_id, plan_name, run_type, device, environment, status)
         VALUES (?,?,?,?,?,?,?)
       `).run(id, run.project_id, run.plan_name, run.run_type || 'custom',
-             run.device || '', run.environment || '', 'running')
+             run.device || '', run.environment || '', run.status || 'pending')
       run.id = id
     }
     return this.getById(run.id)

@@ -72,9 +72,9 @@ window.PageTestRun = (() => {
 
   function _runCard(r, projName) {
     const statusColor = r.status==='pass' ? '#16a34a' : r.status==='fail' ? '#dc2626' :
-                        r.status==='running' ? '#2563eb' : r.status==='pending' ? '#7c3aed' : '#6b7280'
+                        r.status==='running' ? '#2563eb' : '#6b7280'
     const statusBg    = r.status==='pass' ? '#dcfce7' : r.status==='fail' ? '#fee2e2' :
-                        r.status==='running' ? '#dbeafe' : r.status==='pending' ? '#ede9fe' : '#f3f4f6'
+                        r.status==='running' ? '#dbeafe' : '#f3f4f6'
     const total = (r.pass||0) + (r.fail||0)
     const dur   = r.duration_ms ? _fmtDuration(r.duration_ms) : '—'
     const date  = r.created_at ? new Date(r.created_at).toLocaleString('id-ID',
@@ -99,7 +99,7 @@ window.PageTestRun = (() => {
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;
             background:${statusBg};color:${statusColor};text-transform:uppercase">
-            ${r.status==='pending'?'💾 Belum Dijalankan':r.status==='running'?'⏳ Running':r.status||'pending'}
+            ${r.status==='pending'?'Untested':r.status==='running'?'Running':r.status?.toUpperCase()||'Untested'}
           </span>
           <button onclick="event.stopPropagation();PageTestRun.deleteRun('${esc(r.id)}')"
             style="background:none;border:none;cursor:pointer;color:var(--text3);
@@ -431,11 +431,18 @@ window.PageTestRun = (() => {
   function _tcResultRow(r, i) {
     const ok = r.status === 'pass'
     const running = r.status === 'running'
+    const untested = r.status === 'pending'
     const steps = r.step_logs || []
 
-    const borderColor = ok ? '#16a34a' : running ? '#2563eb' : r.status==='fail' ? '#dc2626' : '#e5e5e2'
-    const numBg = ok ? '#16a34a' : running ? '#2563eb' : r.status==='fail' ? '#dc2626' : '#f3f4f6'
-    const numColor = ['pass','fail','running'].includes(r.status) ? '#fff' : '#6b7280'
+    // Untuk untested, coba ambil steps dari TC definition di _allTCs
+    const tcDef = _allTCs.find(t => t.id === r.tc_id)
+    const tcSteps = tcDef?.steps_json
+      ? (() => { try { return JSON.parse(tcDef.steps_json) } catch { return [] } })()
+      : []
+
+    const borderColor = ok ? '#16a34a' : running ? '#2563eb' : r.status==='fail' ? '#dc2626' : 'var(--border)'
+    const numBg = ok ? '#16a34a' : running ? '#2563eb' : r.status==='fail' ? '#dc2626' : 'var(--surface3)'
+    const numColor = ['pass','fail','running'].includes(r.status) ? '#fff' : 'var(--text3)'
 
     return `
     <div id="tcr-${esc(r.id||r.tc_id+i)}"
@@ -463,7 +470,7 @@ window.PageTestRun = (() => {
           style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;
             background:${ok?'#dcfce7':running?'#dbeafe':r.status==='fail'?'#fee2e2':'#f3f4f6'};
             color:${ok?'#16a34a':running?'#2563eb':r.status==='fail'?'#dc2626':'#6b7280'}">
-          ${r.status==='pending'?'pending':r.status.toUpperCase()}
+          ${r.status==='pending'?'Untested':r.status==='running'?'Running':r.status?.toUpperCase()||'Untested'}
         </span>
         <i class="bi bi-chevron-down" id="tcr-chev-${esc(r.id||r.tc_id+i)}"
           style="font-size:10px;color:var(--text3);transition:transform .15s;flex-shrink:0"></i>
@@ -483,7 +490,7 @@ window.PageTestRun = (() => {
             </div>
           </div>` : ''}
 
-        <!-- Steps dari log -->
+        <!-- Steps: log steps kalau sudah run, scenario steps kalau untested -->
         ${steps.length ? `
           <div style="padding:8px 14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
@@ -493,7 +500,6 @@ window.PageTestRun = (() => {
             ${steps.map((s, si) => {
               const isPass = s.status === 'pass'
               const isFail = s.status === 'fail'
-              const isInfo = !isPass && !isFail
               return `
               <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;
                 border-bottom:1px solid var(--border)">
@@ -509,11 +515,35 @@ window.PageTestRun = (() => {
                   word-break:break-word">${esc(s.msg||s.action||'')}</span>
               </div>`
             }).join('')}
+          </div>` : untested && tcSteps.length ? `
+          <div style="padding:8px 14px">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+              letter-spacing:.4px;margin-bottom:6px">
+              Skenario (${tcSteps.length} steps)
+            </div>
+            ${tcSteps.map((s, si) => `
+              <div style="display:flex;align-items:center;gap:8px;padding:5px 0;
+                border-bottom:1px solid var(--border)">
+                <span style="width:18px;height:18px;border-radius:50%;background:var(--surface3);
+                  color:var(--text3);font-size:9px;font-weight:700;display:flex;align-items:center;
+                  justify-content:center;flex-shrink:0">${si+1}</span>
+                <span style="background:var(--blue-bg);color:var(--blue);font-size:10px;
+                  font-weight:600;padding:1px 6px;border-radius:4px;flex-shrink:0">
+                  ${esc(s.action||'?')}
+                </span>
+                <span style="font-size:11px;color:var(--text2);overflow:hidden;
+                  text-overflow:ellipsis;white-space:nowrap;flex:1">
+                  ${esc(s.params?.selector||s.params?.package||s.params?.expected||s.params?.value||'')}
+                </span>
+                <span style="font-size:9px;color:var(--text3);flex-shrink:0">Untested</span>
+              </div>`).join('')}
           </div>` : `
-          <div style="padding:8px 14px;font-size:11px;color:var(--text3);text-align:center">
-            ${r.status === 'running' ? '<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> Menunggu log steps...' :
-              r.status === 'pending' ? '<i class="bi bi-hourglass"></i> Belum dijalankan' :
-              '<i class="bi bi-info-circle"></i> Log steps tidak tersedia untuk run ini'}
+          <div style="padding:10px 14px;font-size:11px;color:var(--text3);text-align:center">
+            ${running
+              ? '<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> Menunggu log steps...'
+              : untested
+              ? '<i class="bi bi-hourglass"></i> Untested — belum dijalankan'
+              : '<i class="bi bi-info-circle"></i> Log steps tidak tersedia'}
           </div>`}
 
         <!-- Evidence -->
@@ -596,7 +626,7 @@ window.PageTestRun = (() => {
       }
     }
 
-    toast(`✅ Test Run "${runName}" disimpan (${_selTCs.size} TC)`)
+    toast(`✅ Test Run disimpan — ${_selTCs.size} TC, status: Untested`)
     _view = 'list'
     render()
   }
