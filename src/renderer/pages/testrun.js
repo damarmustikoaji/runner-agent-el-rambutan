@@ -47,14 +47,11 @@ window.PageTestRun = (() => {
     content.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
 
-      <!-- Header minimal -->
-      <div style="padding:10px 20px;border-bottom:1px solid var(--border);
-        background:var(--surface);display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <span style="font-size:12px;font-weight:600;color:var(--text2)">
-          <i class="bi bi-list-check"></i> Semua Test Run
-        </span>
-        <span style="font-size:11px;color:var(--text3);margin-left:4px">
-          ${_runs.length} run${_runs.length!==1?'s':''}
+      <!-- Header minimal — dihapus label "Semua Test Run" -->
+      <div style="padding:8px 20px;border-bottom:1px solid var(--border);
+        background:var(--surface);display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <span style="font-size:11px;color:var(--text3)">
+          ${_runs.length} test run${_runs.length!==1?'s':''}
         </span>
       </div>
 
@@ -75,9 +72,9 @@ window.PageTestRun = (() => {
 
   function _runCard(r, projName) {
     const statusColor = r.status==='pass' ? '#16a34a' : r.status==='fail' ? '#dc2626' :
-                        r.status==='running' ? '#2563eb' : r.status==='saved' ? '#7c3aed' : '#6b7280'
+                        r.status==='running' ? '#2563eb' : r.status==='pending' ? '#7c3aed' : '#6b7280'
     const statusBg    = r.status==='pass' ? '#dcfce7' : r.status==='fail' ? '#fee2e2' :
-                        r.status==='running' ? '#dbeafe' : r.status==='saved' ? '#ede9fe' : '#f3f4f6'
+                        r.status==='running' ? '#dbeafe' : r.status==='pending' ? '#ede9fe' : '#f3f4f6'
     const total = (r.pass||0) + (r.fail||0)
     const dur   = r.duration_ms ? _fmtDuration(r.duration_ms) : '—'
     const date  = r.created_at ? new Date(r.created_at).toLocaleString('id-ID',
@@ -102,7 +99,7 @@ window.PageTestRun = (() => {
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;
             background:${statusBg};color:${statusColor};text-transform:uppercase">
-            ${r.status==='saved'?'💾 Tersimpan':r.status||'pending'}
+            ${r.status==='pending'?'💾 Belum Dijalankan':r.status==='running'?'⏳ Running':r.status||'pending'}
           </span>
           <button onclick="event.stopPropagation();PageTestRun.deleteRun('${esc(r.id)}')"
             style="background:none;border:none;cursor:pointer;color:var(--text3);
@@ -486,31 +483,38 @@ window.PageTestRun = (() => {
             </div>
           </div>` : ''}
 
-        <!-- Steps -->
+        <!-- Steps dari log -->
         ${steps.length ? `
           <div style="padding:8px 14px">
             <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
-              letter-spacing:.4px;margin-bottom:6px">Steps</div>
-            ${steps.map((s, si) => `
+              letter-spacing:.4px;margin-bottom:6px">
+              Log Steps (${steps.length})
+            </div>
+            ${steps.map((s, si) => {
+              const isPass = s.status === 'pass'
+              const isFail = s.status === 'fail'
+              const isInfo = !isPass && !isFail
+              return `
               <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;
                 border-bottom:1px solid var(--border)">
-                <div style="width:18px;height:18px;border-radius:50%;flex-shrink:0;
-                  background:${s.status==='pass'?'#dcfce7':s.status==='fail'?'#fee2e2':'#f3f4f6'};
+                <span style="font-size:9px;color:#8b949e;flex-shrink:0;font-family:monospace;
+                  margin-top:2px;min-width:44px">${s.time||''}</span>
+                <div style="width:16px;height:16px;border-radius:50%;flex-shrink:0;
+                  background:${isPass?'#dcfce7':isFail?'#fee2e2':'var(--surface3)'};
                   display:flex;align-items:center;justify-content:center;margin-top:1px">
-                  <i class="bi bi-${s.status==='pass'?'check':'x'}-lg"
-                    style="font-size:9px;color:${s.status==='pass'?'#16a34a':'#dc2626'}"></i>
+                  <i class="bi bi-${isPass?'check-lg':isFail?'x-lg':'dash'}"
+                    style="font-size:8px;color:${isPass?'#16a34a':isFail?'#dc2626':'#8b949e'}"></i>
                 </div>
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:11px;font-weight:600;color:var(--text)">${si+1}. ${esc(s.action||s.msg||'')}</div>
-                  ${s.selector ? `<div style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">${esc(s.selector)}</div>` : ''}
-                </div>
-                <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;
-                  background:${s.status==='pass'?'#dcfce7':s.status==='fail'?'#fee2e2':'#f3f4f6'};
-                  color:${s.status==='pass'?'#16a34a':s.status==='fail'?'#dc2626':'#6b7280'}">
-                  ${(s.status||'—').toUpperCase()}
-                </span>
-              </div>`).join('')}
-          </div>` : ''}
+                <span style="flex:1;font-size:11px;color:${isPass?'var(--green)':isFail?'var(--red)':'var(--text2)'};
+                  word-break:break-word">${esc(s.msg||s.action||'')}</span>
+              </div>`
+            }).join('')}
+          </div>` : `
+          <div style="padding:8px 14px;font-size:11px;color:var(--text3);text-align:center">
+            ${r.status === 'running' ? '<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> Menunggu log steps...' :
+              r.status === 'pending' ? '<i class="bi bi-hourglass"></i> Belum dijalankan' :
+              '<i class="bi bi-info-circle"></i> Log steps tidak tersedia untuk run ini'}
+          </div>`}
 
         <!-- Evidence -->
         ${r.evidence && Object.keys(r.evidence).length ? `
@@ -577,7 +581,7 @@ window.PageTestRun = (() => {
       run_type:    'custom',
       device:      devInfo?.model || serial || '',
       environment: env?.name || '',
-      status:      'saved',
+      status:      'pending',
     }).catch(err => { toast('Gagal simpan: ' + err.message, 'error'); return null })
 
     if (!run) return
@@ -726,7 +730,7 @@ window.PageTestRun = (() => {
     _view = 'detail'
     render()
 
-    // Log helper
+    // ── Log helper ──────────────────────────────────────────
     let logCount = 0
     const appendLog = (type, msg) => {
       const log = document.getElementById('main-log')
@@ -734,12 +738,13 @@ window.PageTestRun = (() => {
       const ph = log.querySelector('[style*="font-style:italic"]')
       if (ph) log.innerHTML = ''
       const d = document.createElement('div')
-      const c = {pass:'#3fb950',fail:'#f85149',warn:'#d29922',info:'#e6edf3',head:'#58a6ff'}
-      d.style.cssText = `color:${c[type]||'#e6edf3'};padding:1px 0;display:flex;gap:8px`
+      const c = { pass:'#3fb950', fail:'#f85149', warn:'#d29922', info:'#e6edf3', head:'#58a6ff', cmd:'#c9d1d9' }
+      d.style.cssText = `color:${c[type]||'#e6edf3'};padding:1px 0;display:flex;gap:8px;min-height:18px`
       const ts2 = document.createElement('span')
-      ts2.style.cssText = 'color:#8b949e;flex-shrink:0;user-select:none;font-size:10px'
+      ts2.style.cssText = 'color:#8b949e;flex-shrink:0;user-select:none;font-size:10px;font-family:monospace'
       ts2.textContent = `[${_fmtTime()}]`
       const txt = document.createElement('span')
+      txt.style.wordBreak = 'break-all'
       txt.textContent = msg
       d.appendChild(ts2); d.appendChild(txt)
       log.appendChild(d); log.scrollTop = 9999
@@ -748,8 +753,32 @@ window.PageTestRun = (() => {
       if (cnt) cnt.textContent = `${logCount} baris`
     }
 
+    // Subscribe ke runner log events (real-time streaming dari Maestro)
+    const _stepLogs = {}   // { tcId: [{ action, selector, status, msg }] }
+    let _currentTcId = null
+
+    window.api.runner.onLog((data) => {
+      if (!data) return
+      const type = data.type === 'pass' ? 'pass' :
+                   data.type === 'fail' ? 'fail' :
+                   data.type === 'warn' ? 'warn' :
+                   data.type === 'head' ? 'head' : 'info'
+      appendLog(type, data.msg || '')
+
+      // Kumpulkan step logs per TC
+      if (_currentTcId && data.msg) {
+        if (!_stepLogs[_currentTcId]) _stepLogs[_currentTcId] = []
+        _stepLogs[_currentTcId].push({
+          msg:    data.msg,
+          status: data.type === 'pass' ? 'pass' : data.type === 'fail' ? 'fail' : 'info',
+          time:   _fmtTime(),
+        })
+      }
+    })
+
     appendLog('head', `▶ ${runName} (${sel.length} TC)`)
     appendLog('info', `Device: ${serial}`)
+    if (envVars && Object.keys(envVars).length) appendLog('info', `Env vars: ${Object.keys(envVars).join(', ')}`)
     appendLog('info', `Evidence: ${runFolder}`)
 
     let pass = 0, fail = 0
@@ -760,6 +789,8 @@ window.PageTestRun = (() => {
       const dsl    = tc.dsl_yaml || tc.steps_yaml || ''
       const tcId   = `tcr-res-${tc.id}`
       const startT = Date.now()
+      _currentTcId = tc.id
+      if (!_stepLogs[tc.id]) _stepLogs[tc.id] = []
 
       // Insert result row ke UI
       const results = document.getElementById('tc-results')
@@ -770,7 +801,7 @@ window.PageTestRun = (() => {
       _tcResults.push(tmpResult)
       if (results) results.innerHTML += _tcResultRow(tmpResult, i)
 
-      appendLog('info', `▶ [${i+1}/${sel.length}] ${tc.name}`)
+      appendLog('head', `── TC ${i+1}/${sel.length}: ${tc.name} ──`)
       const pbar = document.getElementById('run-pbar')
       if (pbar) pbar.style.width = Math.round((i/sel.length)*100)+'%'
 
@@ -790,17 +821,20 @@ window.PageTestRun = (() => {
           screenshotOnFail: ssFail,
         })
         pass++
-        appendLog('pass', `✅ PASS: ${tc.name}`)
+        appendLog('pass', `✅ PASS — ${tc.name}`)
       } catch (err) {
         fail++
         tcStatus = 'fail'
         errMsg   = err.message
-        appendLog('fail', `❌ FAIL: ${tc.name} — ${err.message}`)
+        appendLog('fail', `❌ FAIL — ${tc.name}`)
+        appendLog('fail', `   ${err.message}`)
       }
 
-      const duration = Date.now() - startT
+      _currentTcId = null
+      const duration    = Date.now() - startT
+      const stepLogsArr = _stepLogs[tc.id] || []
 
-      // Save tc_result ke DB
+      // Save tc_result ke DB dengan step_logs
       const savedId = await window.api.db.saveTcResult({
         run_id:      run.id,
         tc_id:       tc.id,
@@ -809,15 +843,14 @@ window.PageTestRun = (() => {
         duration_ms: duration,
         error_msg:   errMsg,
         evidence:    tcEvidenceDir ? { folder: tcEvidenceDir } : {},
-        step_logs:   [],
+        step_logs:   stepLogsArr,
       }).catch(() => tcId)
 
-      // Update row di UI
+      // Update _tcResults
       const finalResult = { id: savedId, tc_id: tc.id, tc_name: tc.name,
         status: tcStatus, duration_ms: duration, error_msg: errMsg,
-        evidence: tcEvidenceDir ? { folder: tcEvidenceDir } : {}, step_logs: [] }
+        evidence: tcEvidenceDir ? { folder: tcEvidenceDir } : {}, step_logs: stepLogsArr }
 
-      // Update _tcResults
       const idx = _tcResults.findIndex(r => r.id === tcId)
       if (idx >= 0) _tcResults[idx] = finalResult
 
