@@ -129,7 +129,13 @@ function registerAllHandlers(win) {
     if (runner.isRunning()) {
       throw new Error('Tidak bisa dump XML saat test sedang berjalan.')
     }
-    return getInspector().dumpXml(serial)
+    const dm = getDeviceManager()
+    dm.pausePolling()
+    try {
+      return await getInspector().dumpXml(serial)
+    } finally {
+      dm.resumePolling()
+    }
   })
 
   handle('inspector:tap', async (_, serial, x, y) => {

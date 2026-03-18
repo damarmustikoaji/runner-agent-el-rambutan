@@ -10,7 +10,7 @@ const EventEmitter = require('events')
 const { adb, adbDevice, isBinaryAvailable, getAdbPath } = require('../utils/process-utils')
 const logger = require('../utils/logger')
 
-const POLL_INTERVAL_MS = 3000  // cek device setiap 3 detik
+const POLL_INTERVAL_MS = 10000  // cek device setiap 10 detik (sebelumnya 3s — terlalu sering, ganggu uiautomator)
 
 class DeviceManager extends EventEmitter {
   constructor() {
@@ -19,6 +19,7 @@ class DeviceManager extends EventEmitter {
     this.activeSerial = null
     this.pollTimer    = null
     this.adbReady     = false
+    this._paused      = false   // pause saat Inspector melakukan XML dump
   }
 
   async init() {
@@ -85,12 +86,17 @@ class DeviceManager extends EventEmitter {
     }
   }
 
+  // Pause sementara tanpa stop timer — dipakai saat Inspector dump XML
+  pausePolling()  { this._paused = true  }
+  resumePolling() { this._paused = false }
+
   /**
    * Refresh daftar device dari `adb devices -l`
    * Emit 'devices-updated' jika ada perubahan
    */
   async refresh() {
     if (!this.adbReady) return
+    if (this._paused) return  // skip saat Inspector sedang dump XML
 
     try {
       const { stdout } = await adb(['devices', '-l'], { timeout: 5000 })

@@ -112,32 +112,47 @@ class Inspector {
    */
   async dumpXml(serial) {
     logger.debug(`Inspector XML dump: ${serial}`)
-    const adbPath   = getAdbPath()
-    const tmpFile   = path.join(os.tmpdir(), `testpilot_ui_${Date.now()}.xml`)
+    const adbPath    = getAdbPath()
+    const tmpFile    = path.join(os.tmpdir(), `testpilot_ui_${Date.now()}.xml`)
     const devicePath = '/data/local/tmp/testpilot_ui.xml'
 
-    // Retry hingga 3x karena uiautomator kadang SIGKILL saat emulator busy
+    // Metode 1: dump langsung ke stdout via /dev/tty — tidak butuh file write permission
+    // Lebih ringan karena tidak perlu write ke storage
+    try {
+      const result = await spawnAsync(
+        adbPath,
+        ['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'],
+        { timeout: 20000 }
+      )
+      if (result.exitCode === 0 && result.stdout && result.stdout.includes('<hierarchy')) {
+        logger.debug(`XML via dump /dev/tty: ${result.stdout.length} chars`)
+        const tree = this._parseXmlToTree(result.stdout)
+        return { xml: result.stdout, tree }
+      }
+      logger.debug(`dump /dev/tty failed (exit ${result.exitCode}), trying file method...`)
+    } catch (e) {
+      logger.debug(`dump /dev/tty exception: ${e.message}`)
+    }
+
+    // Metode 2: dump ke file dengan retry
     const MAX_RETRY = 3
     let lastErr = null
 
     for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
       try {
-        // Tunggu sebentar sebelum retry (emulator perlu settle)
         if (attempt > 1) {
           logger.debug(`XML dump retry ${attempt}/${MAX_RETRY}...`)
-          await new Promise(r => setTimeout(r, 800 * attempt))
+          await new Promise(r => setTimeout(r, 1000 * attempt))
         }
 
-        // 1. uiautomator dump — timeout lebih longgar (20s)
         const dumpResult = await spawnAsync(
           adbPath,
           ['-s', serial, 'shell', 'uiautomator', 'dump', devicePath],
           { timeout: 20000 }
         )
 
-        // Exit 137 = SIGKILL (emulator OOM/busy), retry
         if (dumpResult.exitCode === 137) {
-          lastErr = new Error(`uiautomator killed (exit 137) — emulator busy, retrying...`)
+          lastErr = new Error(`uiautomator killed (exit 137) — coba tambah RAM emulator di AVD Manager`)
           logger.warn(`uiautomator SIGKILL attempt ${attempt}`)
           continue
         }
@@ -147,7 +162,6 @@ class Inspector {
           continue
         }
 
-        // 2. Baca via exec-out
         const catResult = await spawnAsync(
           adbPath, ['-s', serial, 'exec-out', 'cat', devicePath],
           { timeout: 10000 }
@@ -155,7 +169,6 @@ class Inspector {
 
         let xmlContent = catResult.stdout
         if (!xmlContent || !xmlContent.includes('<hierarchy')) {
-          // Fallback: pull
           await new Promise(r => setTimeout(r, 400))
           const pullResult = await spawnAsync(
             adbPath, ['-s', serial, 'pull', devicePath, tmpFile],
@@ -169,7 +182,7 @@ class Inspector {
         }
 
         if (!xmlContent || !xmlContent.includes('<hierarchy')) {
-          lastErr = new Error('XML tidak valid (tidak ada <hierarchy>)')
+          lastErr = new Error('XML tidak valid')
           continue
         }
 
