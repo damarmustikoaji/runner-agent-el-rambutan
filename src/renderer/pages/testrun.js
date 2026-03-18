@@ -343,9 +343,12 @@ window.PageTestRun = (() => {
       <button class="btn btn-d btn-sm" onclick="PageTestRun.backToList()">
         <i class="bi bi-arrow-left"></i> Semua Run
       </button>
+      <button class="btn btn-d btn-sm" onclick="PageTestRun.editRun()">
+        <i class="bi bi-pencil"></i> Edit
+      </button>
       ${!_isRunning ? `
       <button class="btn btn-p btn-sm" id="run-btn" onclick="PageTestRun.reRun()">
-        <i class="bi bi-arrow-repeat"></i> Jalankan Ulang
+        <i class="bi bi-play-fill"></i> Jalankan
       </button>` : `
       <button class="btn btn-d btn-sm" disabled>
         <i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> Running...
@@ -393,14 +396,15 @@ window.PageTestRun = (() => {
 
       <div style="flex:1;display:flex;min-height:0;overflow:hidden">
 
-        <!-- TC Results list -->
+        <!-- TC Results list — tampil semua sejak awal -->
         <div style="flex:1;overflow-y:auto;padding:14px 20px">
           <div id="tc-results">
-            ${_tcResults.length ? _tcResults.map((r,i) => _tcResultRow(r, i)).join('') : `
-              <div style="text-align:center;padding:32px;color:var(--text3)">
-                <i class="bi bi-hourglass" style="font-size:1.5rem;display:block;margin-bottom:8px;opacity:.4"></i>
-                <div style="font-size:12px">Belum ada hasil TC</div>
-              </div>`}
+            ${_tcResults.length
+              ? _tcResults.map((r,i) => _tcResultRow(r, i)).join('')
+              : `<div style="text-align:center;padding:32px;color:var(--text3)">
+                  <i class="bi bi-clipboard-check" style="font-size:1.5rem;display:block;margin-bottom:8px;opacity:.4"></i>
+                  <div style="font-size:12px">Klik <b>Jalankan</b> untuk mulai test</div>
+                </div>`}
           </div>
         </div>
 
@@ -705,6 +709,8 @@ window.PageTestRun = (() => {
     _activeRun = await window.api.db.getRunById(runId).catch(() => null)
     if (!_activeRun) return
     _tcResults = await window.api.db.getTcResults(runId).catch(() => [])
+    // Load allTCs untuk tampilkan skenario pada TC untested
+    _allTCs = _activeRun.project_id ? await _getAllTCs(_activeRun.project_id).catch(() => []) : _allTCs
     _view = 'detail'
     render()
   }
@@ -755,12 +761,31 @@ window.PageTestRun = (() => {
     })
 
     _activeRun = run
-    _tcResults = []
+    _tcResults = sel.map(tc => ({ id: `tcr-res-${tc.id}`, tc_id: tc.id, tc_name: tc.name, status: 'pending', step_logs: [] }))
     _isRunning = true
     _view = 'detail'
     render()
 
-    // ── Log helper ──────────────────────────────────────────
+    await _doRun(run, serial, sel, envVars, ssStep, ssFail, runFolder)
+  }
+
+  // ── Core run loop — dipakai oleh startRun dan reRun ──────────
+  async function _doRun(run, serial, selTCs, envVars, ssStep, ssFail, runFolder) {
+    if (!selTCs) {
+      // Called from reRun — infer params dari state + run record
+      selTCs   = _allTCs.filter(t => _selTCs.has(t.id))
+      envVars  = AppState.activeEnv?.vars || {}
+      ssStep   = true
+      ssFail   = true
+      const base = await window.api.db.getSetting('evidence_dir').catch(() => '')
+        || (await window.api.system.getDataPath().catch(() => '')) + '/evidence'
+      const ts2 = new Date().toISOString().replace(/[:.]/g,'-').slice(0,16)
+      runFolder = `${base}/${(run.plan_name||'run').replace(/\s+/g,'_')}_${ts2}`
+    }
+
+    _isRunning = true
+
+    // Log helper
     let logCount = 0
     const appendLog = (type, msg) => {
       const log = document.getElementById('main-log')
@@ -783,57 +808,57 @@ window.PageTestRun = (() => {
       if (cnt) cnt.textContent = `${logCount} baris`
     }
 
-    // Subscribe ke runner log events (real-time streaming dari Maestro)
-    const _stepLogs = {}   // { tcId: [{ action, selector, status, msg }] }
+    // Subscribe ke runner log events
+    const _stepLogs = {}
     let _currentTcId = null
-
     window.api.runner.onLog((data) => {
       if (!data) return
-      const type = data.type === 'pass' ? 'pass' :
-                   data.type === 'fail' ? 'fail' :
-                   data.type === 'warn' ? 'warn' :
-                   data.type === 'head' ? 'head' : 'info'
+      const type = data.type==='pass'?'pass':data.type==='fail'?'fail':data.type==='warn'?'warn':data.type==='head'?'head':'info'
       appendLog(type, data.msg || '')
-
-      // Kumpulkan step logs per TC
       if (_currentTcId && data.msg) {
         if (!_stepLogs[_currentTcId]) _stepLogs[_currentTcId] = []
-        _stepLogs[_currentTcId].push({
-          msg:    data.msg,
-          status: data.type === 'pass' ? 'pass' : data.type === 'fail' ? 'fail' : 'info',
-          time:   _fmtTime(),
-        })
+        _stepLogs[_currentTcId].push({ msg: data.msg, status: data.type==='pass'?'pass':data.type==='fail'?'fail':'info', time: _fmtTime() })
       }
     })
 
-    appendLog('head', `▶ ${runName} (${sel.length} TC)`)
+    appendLog('head', `▶ ${run.plan_name} (${selTCs.length} TC)`)
     appendLog('info', `Device: ${serial}`)
-    if (envVars && Object.keys(envVars).length) appendLog('info', `Env vars: ${Object.keys(envVars).join(', ')}`)
     appendLog('info', `Evidence: ${runFolder}`)
 
     let pass = 0, fail = 0
     const startAll = Date.now()
 
-    for (let i = 0; i < sel.length; i++) {
-      const tc     = sel[i]
+    for (let i = 0; i < selTCs.length; i++) {
+      const tc     = selTCs[i]
       const dsl    = tc.dsl_yaml || tc.steps_yaml || ''
       const tcId   = `tcr-res-${tc.id}`
       const startT = Date.now()
       _currentTcId = tc.id
       if (!_stepLogs[tc.id]) _stepLogs[tc.id] = []
 
-      // Insert result row ke UI
+      // Update TC row ke running
       const results = document.getElementById('tc-results')
-      const placeholder = results?.querySelector('[style*="text-align:center"]')
-      if (placeholder) results.innerHTML = ''
+      // Cari row yang sudah ada atau insert baru
+      let rowEl = document.getElementById('tcr-'+tcId)
+      if (!rowEl && results) {
+        const placeholder = results.querySelector('[style*="text-align:center"]')
+        if (placeholder) results.innerHTML = ''
+        const tmpResult = { id: tcId, tc_id: tc.id, tc_name: tc.name, status: 'running', step_logs: [] }
+        if (!_tcResults.find(r => r.id === tcId)) _tcResults.push(tmpResult)
+        results.innerHTML += _tcResultRow(tmpResult, i)
+        rowEl = document.getElementById('tcr-'+tcId)
+      }
 
-      const tmpResult = { id: tcId, tc_id: tc.id, tc_name: tc.name, status: 'running', step_logs: [] }
-      _tcResults.push(tmpResult)
-      if (results) results.innerHTML += _tcResultRow(tmpResult, i)
+      // Update status ke running in-place
+      const numEl   = document.getElementById('tcr-num-'+tcId)
+      const badgeEl = document.getElementById('tcr-badge-'+tcId)
+      if (numEl)   { numEl.innerHTML = '<i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite;font-size:10px"></i>'; numEl.style.background='#2563eb'; numEl.style.color='#fff' }
+      if (badgeEl) { badgeEl.textContent='Running'; badgeEl.style.background='#dbeafe'; badgeEl.style.color='#2563eb' }
+      if (rowEl)   rowEl.style.borderColor = '#2563eb'
 
-      appendLog('head', `── TC ${i+1}/${sel.length}: ${tc.name} ──`)
+      appendLog('head', `── TC ${i+1}/${selTCs.length}: ${tc.name} ──`)
       const pbar = document.getElementById('run-pbar')
-      if (pbar) pbar.style.width = Math.round((i/sel.length)*100)+'%'
+      if (pbar) pbar.style.width = Math.round((i/selTCs.length)*100)+'%'
 
       const tcEvidenceDir = (ssStep || ssFail)
         ? `${runFolder}/${tc.name.replace(/[^a-z0-9_-]/gi,'_')}`
@@ -864,19 +889,13 @@ window.PageTestRun = (() => {
       const duration    = Date.now() - startT
       const stepLogsArr = _stepLogs[tc.id] || []
 
-      // Save tc_result ke DB dengan step_logs
       const savedId = await window.api.db.saveTcResult({
-        run_id:      run.id,
-        tc_id:       tc.id,
-        tc_name:     tc.name,
-        status:      tcStatus,
-        duration_ms: duration,
-        error_msg:   errMsg,
-        evidence:    tcEvidenceDir ? { folder: tcEvidenceDir } : {},
-        step_logs:   stepLogsArr,
+        run_id: run.id, tc_id: tc.id, tc_name: tc.name,
+        status: tcStatus, duration_ms: duration, error_msg: errMsg,
+        evidence: tcEvidenceDir ? { folder: tcEvidenceDir } : {},
+        step_logs: stepLogsArr,
       }).catch(() => tcId)
 
-      // Update _tcResults
       const finalResult = { id: savedId, tc_id: tc.id, tc_name: tc.name,
         status: tcStatus, duration_ms: duration, error_msg: errMsg,
         evidence: tcEvidenceDir ? { folder: tcEvidenceDir } : {}, step_logs: stepLogsArr }
@@ -884,19 +903,16 @@ window.PageTestRun = (() => {
       const idx = _tcResults.findIndex(r => r.id === tcId)
       if (idx >= 0) _tcResults[idx] = finalResult
 
-      // Update UI row in-place
-      const numEl   = document.getElementById('tcr-num-'+tcId)
-      const badgeEl = document.getElementById('tcr-badge-'+tcId)
-      const rowEl   = document.getElementById('tcr-'+tcId)
-      if (numEl)  { numEl.innerHTML = String(i+1); numEl.style.background = tcStatus==='pass'?'#16a34a':'#dc2626'; numEl.style.color='#fff' }
-      if (badgeEl){ badgeEl.textContent = tcStatus.toUpperCase(); badgeEl.style.background = tcStatus==='pass'?'#dcfce7':'#fee2e2'; badgeEl.style.color = tcStatus==='pass'?'#16a34a':'#dc2626' }
-      if (rowEl)  rowEl.style.borderColor = tcStatus==='pass'?'#16a34a':'#dc2626'
+      // Update row in-place
+      if (numEl)   { numEl.innerHTML = String(i+1); numEl.style.background = tcStatus==='pass'?'#16a34a':'#dc2626'; numEl.style.color='#fff' }
+      if (badgeEl) { badgeEl.textContent = tcStatus.toUpperCase(); badgeEl.style.background = tcStatus==='pass'?'#dcfce7':'#fee2e2'; badgeEl.style.color = tcStatus==='pass'?'#16a34a':'#dc2626' }
+      if (rowEl)   rowEl.style.borderColor = tcStatus==='pass'?'#16a34a':'#dc2626'
 
-      // Auto-expand fail
+      // Expand TC yang fail — tampilkan error
       if (tcStatus === 'fail') {
         const det  = document.getElementById('tcr-detail-'+tcId)
         const chev = document.getElementById('tcr-chev-'+tcId)
-        if (errMsg && det) {
+        if (det) {
           det.innerHTML = `<div style="padding:8px 14px;background:#fee2e2;border-bottom:1px solid rgba(220,38,38,.2)">
             <div style="font-size:11px;color:#dc2626;font-weight:600;margin-bottom:3px"><i class="bi bi-exclamation-circle"></i> Error</div>
             <div style="font-size:11px;color:#991b1b;font-family:var(--font-mono)">${esc(errMsg)}</div>
@@ -906,36 +922,27 @@ window.PageTestRun = (() => {
           if (chev) chev.style.transform = 'rotate(180deg)'
         }
       } else if (tcEvidenceDir) {
-        // Show evidence path on pass
         const det = document.getElementById('tcr-detail-'+tcId)
         if (det) {
           det.innerHTML = `<div style="padding:8px 14px">
-            <div style="font-size:10px;color:var(--text3);margin-bottom:3px">Evidence:</div>
             <div style="display:flex;align-items:center;gap:6px">
               <code style="font-size:10px;font-family:var(--font-mono);flex:1;background:var(--surface3);
                 padding:3px 7px;border-radius:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                ${esc(tcEvidenceDir)}
-              </code>
+                ${esc(tcEvidenceDir)}</code>
               <button class="btn btn-xs btn-d" onclick="window.api.system.openExternal('${esc(tcEvidenceDir)}')"
                 title="Buka di Finder"><i class="bi bi-folder2-open"></i></button>
-            </div>
-          </div>`
+            </div></div>`
         }
       }
 
-      // Update progress
-      if (pbar) pbar.style.width = Math.round(((i+1)/sel.length)*100)+'%'
+      if (pbar) pbar.style.width = Math.round(((i+1)/selTCs.length)*100)+'%'
     }
 
-    // Update run record
     const finalStatus = fail > 0 ? 'fail' : 'pass'
     const totalDur = Date.now() - startAll
     await window.api.db.saveRun({
-      id:          run.id,
-      status:      finalStatus,
-      pass, fail,
-      duration_ms: totalDur,
-      finished_at: new Date().toISOString(),
+      id: run.id, status: finalStatus, pass, fail,
+      duration_ms: totalDur, finished_at: new Date().toISOString(),
     }).catch(() => {})
 
     _activeRun = { ..._activeRun, status: finalStatus, pass, fail, duration_ms: totalDur }
@@ -944,32 +951,52 @@ window.PageTestRun = (() => {
     appendLog('head', `Selesai: ${pass} PASS, ${fail} FAIL (${_fmtDuration(totalDur)})`)
     toast(fail ? `❌ ${fail} gagal, ${pass} lulus` : `✅ Semua ${pass} TC lulus!`, fail?'error':'success')
 
-    // Update header badge
-    const headerBadge = document.querySelector('[style*="text-transform:uppercase"]')
-    if (headerBadge && headerBadge.textContent.includes('running')) {
-      headerBadge.textContent = finalStatus.toUpperCase()
-      headerBadge.style.background = finalStatus==='pass'?'#dcfce7':'#fee2e2'
-      headerBadge.style.color = finalStatus==='pass'?'#16a34a':'#dc2626'
-    }
-
-    // Update topbar button
+    // Update topbar
     const ta = document.getElementById('topbar-actions')
     if (ta) ta.innerHTML = `
       <button class="btn btn-d btn-sm" onclick="PageTestRun.backToList()">
         <i class="bi bi-arrow-left"></i> Semua Run
       </button>
-      <button class="btn btn-p btn-sm" onclick="PageTestRun.reRun()">
-        <i class="bi bi-arrow-repeat"></i> Jalankan Ulang
+      <button class="btn btn-d btn-sm" onclick="PageTestRun.editRun()">
+        <i class="bi bi-pencil"></i> Edit
+      </button>
+      <button class="btn btn-p btn-sm" id="run-btn" onclick="PageTestRun.reRun()">
+        <i class="bi bi-play-fill"></i> Jalankan
       </button>`
   }
 
   async function reRun() {
+    if (!_activeRun || _isRunning) return
+
+    const prevResults = await window.api.db.getTcResults(_activeRun.id).catch(() => [])
+    _allTCs = _activeRun.project_id ? await _getAllTCs(_activeRun.project_id).catch(() => []) : _allTCs
+    _selTCs = new Set(prevResults.map(r => r.tc_id))
+
+    if (!_selTCs.size) { toast('⚠️ Tidak ada TC di run ini', 'error'); return }
+    const serial = AppState.connectedDevice?.serial
+    if (!serial) { toast('⚠️ Hubungkan device dulu di Inspector', 'error'); return }
+
+    const selTCs = _allTCs.filter(t => _selTCs.has(t.id))
+    const noDSL  = selTCs.filter(tc => !tc.dsl_yaml && !tc.steps_yaml)
+    if (noDSL.length) {
+      toast(`⚠️ ${noDSL.length} TC tidak punya steps`, 'error'); return
+    }
+
+    // Reset TC results ke pending agar row kembali ke Untested
+    _tcResults = selTCs.map(tc => ({ id: `tcr-res-${tc.id}`, tc_id: tc.id, tc_name: tc.name, status: 'pending', step_logs: [] }))
+    render()
+
+    await _doRun(_activeRun, serial, selTCs, null, null, null, null)
+  }
+
+  async function editRun() {
     if (!_activeRun) return
-    // Load TC dari run ini
-    const results = await window.api.db.getTcResults(_activeRun.id).catch(() => [])
-    _selTCs = new Set(results.map(r => r.tc_id))
-    _allTCs = _selProj ? await _getAllTCs(_selProj) : []
-    _view   = 'create'
+    // Load TC dan pindah ke create view untuk edit
+    const prevResults = await window.api.db.getTcResults(_activeRun.id).catch(() => [])
+    _allTCs = _activeRun.project_id ? await _getAllTCs(_activeRun.project_id).catch(() => []) : _allTCs
+    _selTCs = new Set(prevResults.map(r => r.tc_id))
+    _selProj = _activeRun.project_id
+    _view = 'create'
     render()
   }
 
@@ -1030,7 +1057,7 @@ window.PageTestRun = (() => {
   }
 
   return {
-    render, openCreate, backToList, openDetail, deleteRun, reRun,
+    render, openCreate, backToList, openDetail, deleteRun, reRun, editRun,
     switchProject, changeProject, saveRunOnly,
     selectDevice, filterTCs, togTC, selAll,
     pickEvidenceDir, startRun, toggleTcDetail,
