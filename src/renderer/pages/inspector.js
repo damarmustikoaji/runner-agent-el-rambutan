@@ -426,10 +426,16 @@ window.PageInspector = (() => {
     return devices.map(d => `
       <div class="dev-opt ${_serial===d.serial?'selected':''} ${!d.online?'offline':''}"
         onclick="${d.online ? `PageInspector.selectDevice('${esc(d.serial)}')` : `toast('⚠️ Device offline: ${esc(d.model)}')`}">
-        <div class="do-ico"><i class="bi bi-${d.type==='emulator'?'display':'phone-fill'}"></i></div>
+        <div class="do-ico">
+          <i class="bi bi-${d.type==='ios-simulator'?'apple':d.type==='emulator'?'display':'phone-fill'}"></i>
+        </div>
         <div style="flex:1;min-width:0">
-          <div class="do-name">${esc(d.model)} <span class="xs muted">${esc(d.serial)}</span></div>
-          <div class="do-meta">${d.online ? (d.androidVersion || d.os || 'Android') : 'Offline'} · ${esc(d.type)}</div>
+          <div class="do-name">${esc(d.model)} <span class="xs muted">${esc(d.serial.slice(0,8))}…</span></div>
+          <div class="do-meta">
+            ${d.type==='ios-simulator'
+              ? `iOS ${d.iosVersion||''} · Simulator`
+              : `${d.online ? (d.androidVersion || d.os || 'Android') : 'Offline'} · ${esc(d.type)}`}
+          </div>
         </div>
         <div class="xs fw6" style="color:${d.online?'var(--green)':'var(--text3)'}">
           <i class="bi bi-circle-fill" style="font-size:7px"></i> ${d.online?'Online':'Offline'}
@@ -445,7 +451,16 @@ window.PageInspector = (() => {
   }
 
   function renderXmlTree() {
-    if (!_elements.length) return `
+    // Info banner untuk iOS Simulator
+    const isIos = _serial && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(_serial)
+    const iosBanner = isIos ? `
+      <div style="padding:8px 10px;background:var(--blue-bg);border-bottom:1px solid rgba(59,126,237,.2);
+        font-size:10px;color:var(--blue);line-height:1.5">
+        <i class="bi bi-apple"></i> <b>iOS Simulator</b> — Element inspector terbatas tanpa idb.
+        Screenshot dan run test tetap berfungsi penuh.
+      </div>` : ''
+
+    if (!_elements.length) return `${iosBanner}
       <div class="empty-s" style="padding:16px">
         <div class="ei"><i class="bi bi-code-slash"></i></div>
         <h3>Belum ada data XML</h3>

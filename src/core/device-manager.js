@@ -91,28 +91,61 @@ class DeviceManager extends EventEmitter {
   resumePolling() { this._paused = false }
 
   /**
-   * Refresh daftar device dari `adb devices -l`
-   * Emit 'devices-updated' jika ada perubahan
+   * Refresh daftar device dari `adb devices -l` + `xcrun simctl list` (iOS)
    */
   async refresh() {
     if (!this.adbReady) return
-    if (this._paused) return  // skip saat Inspector sedang dump XML
+    if (this._paused) return
 
     try {
-      const { stdout } = await adb(['devices', '-l'], { timeout: 5000 })
-      const newDevices = this._parseDevices(stdout)
+      // ── Android via ADB ─────────────────────────────────────
+      const { stdout: adbOut } = await adb(['devices', '-l'], { timeout: 5000 })
+      const androidDevices = this._parseDevices(adbOut)
 
+      // ── iOS Simulator via xcrun simctl ──────────────────────
+      const iosDevices = await this._getIosSimulators()
+
+      const newDevices = [...androidDevices, ...iosDevices]
       const changed = JSON.stringify(newDevices) !== JSON.stringify(this.devices)
       if (changed) {
         this.devices = newDevices
-        logger.info(`Devices updated: ${newDevices.length} device(s)`, {
-          devices: newDevices.map(d => `${d.serial}(${d.status})`)
-        })
+        logger.info(`Devices updated: ${newDevices.length} device(s)`)
         this.emit('devices-updated', newDevices)
       }
     } catch (err) {
       logger.error('Failed to refresh devices:', { error: err.message })
     }
+  }
+
+  async _getIosSimulators() {
+    return new Promise(resolve => {
+      const { execFile } = require('child_process')
+      execFile('xcrun', ['simctl', 'list', 'devices', '--json'], { timeout: 5000 }, (err, stdout) => {
+        if (err || !stdout) return resolve([])
+        try {
+          const data    = JSON.parse(stdout)
+          const devices = []
+          for (const [runtime, sims] of Object.entries(data.devices || {})) {
+            // Hanya iOS — skip watchOS, tvOS, visionOS
+            if (!runtime.toLowerCase().includes('ios')) continue
+            const iosVersion = runtime.match(/iOS[-.\s]?(\d+[\d.]*)/i)?.[1] || runtime
+            for (const sim of sims) {
+              if (sim.state !== 'Booted') continue
+              devices.push({
+                serial:     sim.udid,
+                model:      sim.name,
+                type:       'ios-simulator',
+                platform:   'ios',
+                iosVersion,
+                online:     true,
+                status:     'device',
+              })
+            }
+          }
+          resolve(devices)
+        } catch { resolve([]) }
+      })
+    })
   }
 
   _parseDevices(raw) {
