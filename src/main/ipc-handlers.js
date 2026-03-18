@@ -277,6 +277,50 @@ function registerAllHandlers(win) {
 
   handle('system:getDataPath', async () => app.getPath('userData'))
 
+  handle('system:getTestpilotDir', async () => {
+    const os   = require('os')
+    const path = require('path')
+    return path.join(os.homedir(), '.testpilot')
+  })
+
+  handle('system:clearData', async (_, type) => {
+    const fs   = require('fs')
+    const path = require('path')
+    const os   = require('os')
+    const userData      = app.getPath('userData')
+    const testpilotDir  = path.join(os.homedir(), '.testpilot')
+
+    if (type === 'db') {
+      // Hapus hanya database (reset data, binary tetap)
+      const dbPath = path.join(userData, 'data', 'testpilot.db')
+      if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
+      return { ok: true, msg: 'Database berhasil dihapus' }
+    }
+
+    if (type === 'evidence') {
+      // Hapus cache/tmp saja — folder evidence milik user, jangan dihapus
+      const cacheDir = path.join(testpilotDir, 'cache')
+      if (fs.existsSync(cacheDir)) fs.rmSync(cacheDir, { recursive: true, force: true })
+      return { ok: true, msg: 'Cache dihapus' }
+    }
+
+    if (type === 'binaries') {
+      // Hapus semua binary ~/.testpilot/ (ADB, Java, Maestro)
+      if (fs.existsSync(testpilotDir)) fs.rmSync(testpilotDir, { recursive: true, force: true })
+      return { ok: true, msg: 'Binary dependencies dihapus. Jalankan Setup untuk install ulang.' }
+    }
+
+    if (type === 'all') {
+      // Full uninstall — hapus semua data + binaries
+      if (fs.existsSync(testpilotDir)) fs.rmSync(testpilotDir, { recursive: true, force: true })
+      const dataDir = path.join(userData, 'data')
+      if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true })
+      return { ok: true, msg: 'Semua data dan binary dihapus. Restart aplikasi untuk setup ulang.' }
+    }
+
+    return { ok: false, msg: 'Type tidak dikenal' }
+  })
+
   logger.info(`${ipcMain.eventNames().length} IPC handlers registered`)
 }
 

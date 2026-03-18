@@ -122,6 +122,8 @@ contextBridge.exposeInMainWorld('testpilot', {
     getAppVersion:   ()     => ipcRenderer.invoke('system:getAppVersion'),
     openExternal:    (url)  => ipcRenderer.invoke('system:openExternal', url),
     getDataPath:     ()     => ipcRenderer.invoke('system:getDataPath'),
+    getTestpilotDir: ()     => ipcRenderer.invoke('system:getTestpilotDir'),
+    clearData:       (type) => ipcRenderer.invoke('system:clearData', type),
   },
 
 })

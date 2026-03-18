@@ -120,6 +120,8 @@
       getAppVersion:  tp ? w(function()   { return tp.system.getAppVersion() })     : async function() { return '1.0.0-dev' },
       openExternal:   tp ? w(function(u)  { return tp.system.openExternal(u) })     : noop,
       getDataPath:    tp ? w(function()   { return tp.system.getDataPath() })        : async function() { return '~/.testpilot' },
+      getTestpilotDir:tp ? w(function()   { return tp.system.getTestpilotDir() })    : noop,
+      clearData:      tp ? w(function(t)  { return tp.system.clearData(t) })         : noop,
     },
   }
 
