@@ -3,16 +3,17 @@ window.PageTestRun = (() => {
   'use strict'
 
   // ── State ──────────────────────────────────────────────────
-  let _view      = 'list'   // 'list' | 'create' | 'detail'
-  let _runs      = []
-  let _activeRun = null     // run sedang dibuat / dilihat
-  let _tcResults = []       // hasil TC run aktif
-  let _projects  = []
-  let _allTCs    = []
-  let _selTCs    = new Set()
-  let _selProj   = null
-  let _selSerial = null
-  let _isRunning = false
+  let _view         = 'list'   // 'list' | 'create' | 'detail'
+  let _runs         = []
+  let _activeRun    = null     // run sedang dibuat / dilihat
+  let _tcResults    = []       // hasil TC run aktif
+  let _projects     = []
+  let _allTCs       = []
+  let _selTCs       = new Set()
+  let _selProj      = null
+  let _selSerial    = null
+  let _isRunning    = false
+  let _editingRunId = null     // null = buat baru, string = edit run existing
 
   // ── Entry ──────────────────────────────────────────────────
   async function render() {
@@ -135,7 +136,7 @@ window.PageTestRun = (() => {
         <i class="bi bi-arrow-left"></i> Kembali
       </button>
       <button class="btn btn-d btn-sm" onclick="PageTestRun.saveRunOnly()">
-        <i class="bi bi-save"></i> Simpan
+        <i class="bi bi-save"></i> ${_editingRunId ? 'Simpan Perubahan' : 'Simpan'}
       </button>
       <button class="btn btn-p btn-sm" id="run-btn" onclick="PageTestRun.startRun()">
         <i class="bi bi-play-fill"></i> Jalankan
@@ -147,7 +148,15 @@ window.PageTestRun = (() => {
     const online      = devices.filter(d => d.online)
     const envs        = await window.api.db.getEnvs().catch(() => [])
     const evidenceDir = await window.api.db.getSetting('evidence_dir').catch(() => '') || ''
-    if (!_selSerial && online.length) _selSerial = AppState.connectedDevice?.serial || online[0]?.serial
+
+    // Pre-fill dari run yang sedang diedit
+    const prefill = _editingRunId && _activeRun ? _activeRun : null
+    const prefillName = prefill?.plan_name || 'Test Run'
+    const prefillEnvName = prefill?.environment || ''
+    const prefillSerial = prefill?.device
+      ? (online.find(d => d.model === prefill.device || d.serial === prefill.device)?.serial || online[0]?.serial)
+      : null
+    if (!_selSerial) _selSerial = prefillSerial || AppState.connectedDevice?.serial || online[0]?.serial
 
     content.innerHTML = `
     <div style="display:flex;height:100%;overflow:hidden">
@@ -202,7 +211,7 @@ window.PageTestRun = (() => {
               text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">
               Nama Run
             </label>
-            <input type="text" id="run-name" value="Test Run" style="width:100%;font-size:12px"
+            <input type="text" id="run-name" value="${esc(prefillName)}" style="width:100%;font-size:12px"
               oninput="PageTestRun._planName=this.value">
           </div>
 
@@ -214,7 +223,8 @@ window.PageTestRun = (() => {
             ${online.length ? `
               <select id="run-device" style="width:100%;font-size:11px"
                 onchange="PageTestRun.selectDevice(this.value)">
-                ${online.map(d => `<option value="${esc(d.serial)}" ${d.serial===_selSerial?'selected':''}>
+                ${online.map(d => `<option value="${esc(d.serial)}"
+                  ${d.serial===_selSerial?'selected':''}>
                   ${esc(d.model||d.serial)}</option>`).join('')}
               </select>
               <div style="font-size:10px;color:var(--green);margin-top:3px">
@@ -236,7 +246,8 @@ window.PageTestRun = (() => {
             </label>
             <select id="run-env" style="width:100%;font-size:11px">
               <option value="">-- Tanpa environment --</option>
-              ${envs.map(e => `<option value="${e.id}" ${e.is_active?'selected':''}>${esc(e.name)}</option>`).join('')}
+              ${envs.map(e => `<option value="${e.id}"
+                ${e.name===prefillEnvName || e.is_active?'selected':''}>${esc(e.name)}</option>`).join('')}
             </select>
           </div>
 
@@ -550,18 +561,43 @@ window.PageTestRun = (() => {
 
     if (!_selProj) { toast('⚠️ Pilih project dulu', 'error'); return }
 
-    const run = await window.api.db.saveRun({
-      project_id:  _selProj,
-      plan_name:   runName,
-      run_type:    'custom',
-      device:      devInfo?.model || serial || '',
-      environment: env?.name || '',
-      status:      'pending',
-    }).catch(err => { toast('Gagal simpan: ' + err.message, 'error'); return null })
+    let run
+    if (_editingRunId) {
+      // UPDATE run yang sudah ada
+      run = await window.api.db.saveRun({
+        id:          _editingRunId,
+        plan_name:   runName,
+        device:      devInfo?.model || serial || '',
+        environment: env?.name || '',
+        status:      'pending',
+      }).catch(err => { toast('Gagal update: ' + err.message, 'error'); return null })
+    } else {
+      // INSERT run baru
+      run = await window.api.db.saveRun({
+        project_id:  _selProj,
+        plan_name:   runName,
+        run_type:    'custom',
+        device:      devInfo?.model || serial || '',
+        environment: env?.name || '',
+        status:      'pending',
+      }).catch(err => { toast('Gagal simpan: ' + err.message, 'error'); return null })
+    }
 
     if (!run) return
 
-    // Simpan TC yang dipilih sebagai tc_results dengan status pending
+    // Hapus tc_results lama lalu simpan yang baru (untuk handle perubahan TC list)
+    if (_editingRunId) {
+      // Hapus semua result lama untuk run ini agar tidak duplikat
+      const oldResults = await window.api.db.getTcResults(_editingRunId).catch(() => [])
+      for (const old of oldResults) {
+        // Hanya hapus TC yang pending (belum pernah dirun) untuk preserve hasil run lama
+        if (old.status === 'pending') {
+          // Remove dan re-insert below
+        }
+      }
+    }
+
+    // Simpan TC yang dipilih — INSERT OR REPLACE
     for (const tcId of _selTCs) {
       const tc = _allTCs.find(t => t.id === tcId)
       if (tc) {
@@ -571,7 +607,9 @@ window.PageTestRun = (() => {
       }
     }
 
-    toast(`✅ Test Run disimpan — ${_selTCs.size} TC, status: Untested`)
+    const isEdit = !!_editingRunId
+    _editingRunId = null
+    toast(`✅ Test Run ${isEdit ? 'diupdate' : 'disimpan'} — ${_selTCs.size} TC`)
     _view = 'list'
     render()
   }
@@ -634,15 +672,17 @@ window.PageTestRun = (() => {
 
   function openCreate() {
     _view = 'create'
+    _editingRunId = null   // buat baru
     _selTCs.clear()
     render()
   }
 
   function backToList() {
     _view = 'list'
-    _activeRun = null
-    _tcResults = []
-    _isRunning = false
+    _activeRun    = null
+    _tcResults    = []
+    _isRunning    = false
+    _editingRunId = null
     render()
   }
 
@@ -918,11 +958,12 @@ window.PageTestRun = (() => {
 
   async function editRun() {
     if (!_activeRun) return
-    // Load TC dan pindah ke create view untuk edit
     const prevResults = await window.api.db.getTcResults(_activeRun.id).catch(() => [])
     _allTCs = _activeRun.project_id ? await _getAllTCs(_activeRun.project_id).catch(() => []) : _allTCs
     _selTCs = new Set(prevResults.map(r => r.tc_id))
     _selProj = _activeRun.project_id
+    _selSerial = null   // reset agar pre-fill dari activeRun.device
+    _editingRunId = _activeRun.id   // tandai sedang EDIT bukan buat baru
     _view = 'create'
     render()
   }

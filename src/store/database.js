@@ -364,10 +364,23 @@ const TestRuns = {
     const existing = this.getById(run.id)
     if (existing) {
       getDb().prepare(`
-        UPDATE test_runs SET status=?, pass=?, fail=?, skip=?, duration_ms=?, started_at=?, finished_at=?
+        UPDATE test_runs
+        SET plan_name=?, device=?, environment=?, status=?,
+            pass=?, fail=?, skip=?, duration_ms=?, started_at=?, finished_at=?
         WHERE id=?
-      `).run(run.status, run.pass || 0, run.fail || 0, run.skip || 0, run.duration_ms || 0,
-             run.started_at, run.finished_at, run.id)
+      `).run(
+        run.plan_name   ?? existing.plan_name,
+        run.device      ?? existing.device,
+        run.environment ?? existing.environment,
+        run.status      ?? existing.status,
+        run.pass        ?? existing.pass ?? 0,
+        run.fail        ?? existing.fail ?? 0,
+        run.skip        ?? existing.skip ?? 0,
+        run.duration_ms ?? existing.duration_ms ?? 0,
+        run.started_at  ?? existing.started_at,
+        run.finished_at ?? existing.finished_at,
+        run.id
+      )
     } else {
       const id = run.id || generateId('run-')
       getDb().prepare(`
