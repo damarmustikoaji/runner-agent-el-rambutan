@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="src/renderer/assets/icons/icon.png" width="80" alt="TestPilot"/>
-  <h1>TestPilot</h1>
+  <img src="src/renderer/assets/icons/icon.png" width="80" alt="MustLab"/>
+  <h1>MustLab</h1>
   <p>Mobile test automation for QA teams — no coding required</p>
 
   ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
@@ -13,7 +13,7 @@
 
 ---
 
-TestPilot adalah Electron app untuk QA non-teknis yang ingin menjalankan automation test di Android dan iOS Simulator tanpa perlu belajar koding. Semua dilakukan lewat UI — mulai dari inspect element, buat test case, sampai eksekusi dan lihat hasilnya.
+MustLab adalah Electron app untuk QA non-teknis yang ingin menjalankan automation test di Android dan iOS Simulator tanpa perlu belajar koding. Semua dilakukan lewat UI — mulai dari inspect element, buat test case, sampai eksekusi dan lihat hasilnya.
 
 ## Features
 
@@ -58,8 +58,8 @@ TestPilot adalah Electron app untuk QA non-teknis yang ingin menjalankan automat
 
 ```bash
 # Clone repo
-git clone https://github.com/your-username/testpilot.git
-cd testpilot
+git clone https://github.com/your-username/MustLab.git
+cd MustLab
 
 # Install dependencies
 npm install
@@ -84,7 +84,7 @@ npm run make
 ## Project Structure
 
 ```
-testpilot/
+MustLab/
 ├── src/
 │   ├── core/
 │   │   ├── device-manager.js    # Android ADB + iOS Simulator detection
@@ -176,7 +176,7 @@ idb list-targets
 open -a Simulator
 # Pilih iPhone model dari File → Open Simulator
 
-# 6. Buka TestPilot
+# 6. Buka MustLab
 # → iPhone terdeteksi otomatis di Inspector
 # → Klik Detect untuk list bundle ID
 # → Buat TC dengan appId = Bundle ID app
@@ -195,7 +195,7 @@ com.apple.Preferences         → Settings
 
 ## Test Case DSL
 
-TestPilot generate Maestro YAML. Format yang didukung:
+MustLab generate Maestro YAML. Format yang didukung:
 
 ```yaml
 appId: com.example.myapp
@@ -242,7 +242,7 @@ adb devices
 ```bash
 # Jalankan ulang Setup Wizard di app
 # atau manual:
-~/.testpilot/bin/maestro/bin/maestro --version
+~/.MustLab/bin/maestro/bin/maestro --version
 ```
 
 **UIAutomator OOM (XML dump gagal)**
@@ -256,7 +256,7 @@ idb connect <UDID>
 # UDID dari: xcrun simctl list devices | grep Booted
 ```
 
-**Simulator tidak terdeteksi di TestPilot**
+**Simulator tidak terdeteksi di MustLab**
 ```bash
 # Pastikan simulator sedang Booted
 xcrun simctl list devices | grep Booted
@@ -304,4 +304,4 @@ No Appium. No WebDriverAgent. No Docker. Hanya Maestro CLI + idb untuk iOS.
 
 ## License
 
-MIT © TestPilot Team
+MIT © MustLab Team

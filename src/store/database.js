@@ -130,11 +130,11 @@ function getDbPath() {
     const { app } = require('electron')
     const dataDir = path.join(app.getPath('userData'), 'data')
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
-    return path.join(dataDir, 'testpilot.db')
+    return path.join(dataDir, 'mustlab.db')
   } catch {
-    const fallbackDir = path.join(require('os').homedir(), '.testpilot', 'data')
+    const fallbackDir = path.join(require('os').homedir(), '.mustlab', 'data')
     if (!fs.existsSync(fallbackDir)) fs.mkdirSync(fallbackDir, { recursive: true })
-    return path.join(fallbackDir, 'testpilot.db')
+    return path.join(fallbackDir, 'mustlab.db')
   }
 }
 
@@ -160,7 +160,7 @@ function init() {
     `).run(
       'env-staging',
       'Staging',
-      'https://staging.example.com',
+      'stg envi',
       1,
       JSON.stringify({ BASE_URL: 'https://staging.example.com', EMAIL: '', PASSWORD: '' })
     )

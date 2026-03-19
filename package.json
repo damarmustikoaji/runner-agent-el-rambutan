@@ -1,7 +1,7 @@
 {
-  "name": "testpilot",
+  "name": "mustlab",
   "version": "1.0.0",
-  "description": "Mobile Test Runner Agent \u2014 Android & iOS Simulator. No-code test automation for QA teams.",
+  "description": "Click to test. That simple.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

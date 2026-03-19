@@ -8,10 +8,10 @@
 ;(function() {
   'use strict'
 
-  const tp = window.testpilot
+  const tp = window.mustlab
 
   if (!tp) {
-    console.warn('[bridge] window.testpilot not available — running outside Electron?')
+    console.warn('[bridge] window.mustlab not available — running outside Electron?')
   }
 
   // Normalize IPC response
@@ -120,11 +120,11 @@
       openFileDialog: tp ? w(function(o)  { return tp.system.openFileDialog(o) })  : noop,
       getAppVersion:  tp ? w(function()   { return tp.system.getAppVersion() })     : async function() { return '1.0.0-dev' },
       openExternal:   tp ? w(function(u)  { return tp.system.openExternal(u) })     : noop,
-      getDataPath:    tp ? w(function()   { return tp.system.getDataPath() })        : async function() { return '~/.testpilot' },
+      getDataPath:    tp ? w(function()   { return tp.system.getDataPath() })        : async function() { return '~/.mustlab' },
       log:            tp ? function(l,m,x){ return tp.system.log(l,m,x) }           : function() {},
       getLogPath:     tp ? w(function()   { return tp.system.getLogPath() })         : noop,
       readLogFile:    tp ? w(function(p)   { return tp.system.readLogFile(p) })       : noop,
-      getTestpilotDir:tp ? w(function()   { return tp.system.getTestpilotDir() })    : noop,
+      getmustlabDir:tp ? w(function()   { return tp.system.getmustlabDir() })    : noop,
       clearData:      tp ? w(function(t)  { return tp.system.clearData(t) })         : noop,
     },
   }

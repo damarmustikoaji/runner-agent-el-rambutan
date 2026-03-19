@@ -7,8 +7,8 @@ const path = require('path')
 
 module.exports = {
   packagerConfig: {
-    name: 'TestPilot',
-    executableName: 'testpilot',
+    name: 'MustLab',
+    executableName: 'MustLab',
     icon: path.join(__dirname, 'src/renderer/assets/icons/icon'),
     asar: {
       unpack: '**/*.{node,exe,dylib,so,dll}'
@@ -36,15 +36,15 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       config: {
         format: 'ULFO',
-        name: 'TestPilot'
+        name: 'MustLab'
       }
     },
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'testpilot',
-        authors: 'TestPilot Team',
-        exe: 'testpilot.exe'
+        name: 'MustLab',
+        authors: 'damar',
+        exe: 'MustLab.exe'
       }
     },
     {

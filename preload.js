@@ -7,7 +7,7 @@
  */
 const { contextBridge, ipcRenderer } = require('electron')
 
-contextBridge.exposeInMainWorld('testpilot', {
+contextBridge.exposeInMainWorld('mustlab', {
 
   // ── Setup Wizard ──────────────────────────────────────────
   setup: {
@@ -126,7 +126,7 @@ contextBridge.exposeInMainWorld('testpilot', {
     log:             (level, msg, meta) => ipcRenderer.invoke('system:log', level, msg, meta),
     getLogPath:      ()     => ipcRenderer.invoke('system:getLogPath'),
     readLogFile:     (p)    => ipcRenderer.invoke('system:readLogFile', p),
-    getTestpilotDir: ()     => ipcRenderer.invoke('system:getTestpilotDir'),
+    getmustlabDir: ()     => ipcRenderer.invoke('system:getmustlabDir'),
     clearData:       (type) => ipcRenderer.invoke('system:clearData', type),
   },
 

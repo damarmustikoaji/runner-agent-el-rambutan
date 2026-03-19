@@ -25,6 +25,6 @@ app.whenReady()
 
 app.on('window-all-closed', () => {
   // Quit di semua platform termasuk macOS
-  // Standard macOS behavior (stay in dock) tidak cocok untuk tools seperti TestPilot
+  // Standard macOS behavior (stay in dock) tidak cocok untuk tools seperti MustLab
   app.quit()
 })

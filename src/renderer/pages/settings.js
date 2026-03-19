@@ -10,12 +10,12 @@ window.PageSettings = (() => {
     const ta      = document.getElementById('topbar-actions')
     ta.innerHTML  = ''
 
-    const [dataPath, version, deps, evidenceDir, testpilotDir] = await Promise.all([
+    const [dataPath, version, deps, evidenceDir, mustlabDir] = await Promise.all([
       window.api.system.getDataPath().catch(() => '~'),
       window.api.system.getAppVersion().catch(() => CURRENT_VERSION),
       window.api.setup.checkDeps().catch(() => ({})),
       window.api.db.getSetting('evidence_dir').catch(() => ''),
-      window.api.system.getTestpilotDir().catch(() => '~/.testpilot'),
+      window.api.system.getmustlabDir().catch(() => '~/.mustlab'),
     ])
 
     const evDir = evidenceDir || ''
@@ -58,7 +58,7 @@ window.PageSettings = (() => {
           <div style="display:flex;gap:6px;align-items:center">
             <code style="flex:1;background:var(--surface2);padding:5px 9px;border-radius:6px;
               font-size:10px;font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-              ${dataPath}/data/testpilot.db
+              ${dataPath}/data/mustlab.db
             </code>
             <button class="btn btn-d btn-sm" onclick="window.api.system.openExternal('${dataPath}/data')" title="Buka folder">
               <i class="bi bi-folder2-open"></i></button>
@@ -76,10 +76,10 @@ window.PageSettings = (() => {
         </div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:12px">
           Install location: <code style="font-family:var(--font-mono);font-size:10px;
-            background:var(--surface2);padding:1px 5px;border-radius:3px">${testpilotDir}/</code>
+            background:var(--surface2);padding:1px 5px;border-radius:3px">${mustlabDir}/</code>
         </div>
 
-        <div id="deps-list">${_renderDeps(deps, testpilotDir)}</div>
+        <div id="deps-list">${_renderDeps(deps, mustlabDir)}</div>
 
         <div style="display:flex;gap:8px;margin-top:12px">
           <button class="btn btn-p btn-sm" onclick="navigate('setup')">
@@ -97,12 +97,12 @@ window.PageSettings = (() => {
           <i class="bi bi-trash3"></i> Clear Data & Uninstall
         </div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:14px">
-          Gunakan jika TestPilot bermasalah atau ingin install ulang dari awal.
+          Gunakan jika mustlab bermasalah atau ingin install ulang dari awal.
         </div>
         <div style="display:flex;flex-direction:column;gap:0">
           ${[
             ['Reset Database',         'db',       'var(--text2)', 'Hapus semua project, TC, dan riwayat run. Binary tetap ada.'],
-            ['Hapus Cache Download',   'evidence', 'var(--text2)', 'Hapus file sementara di ~/.testpilot/cache/'],
+            ['Hapus Cache Download',   'evidence', 'var(--text2)', 'Hapus file sementara di ~/.mustlab/cache/'],
             ['Reinstall Dependencies', 'binaries', '#ea580c',     'Hapus ADB, Java, Maestro — Setup Wizard harus dijalankan ulang.'],
             ['Uninstall Lengkap',      'all',      '#dc2626',     'Hapus SEMUA data + binary. Tidak bisa dibatalkan!'],
           ].map(([label, type, color, desc]) => `
@@ -123,7 +123,7 @@ window.PageSettings = (() => {
       <div class="card">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
           <div>
-            <div style="font-size:15px;font-weight:700;margin-bottom:2px">TestPilot</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:2px">mustlab</div>
             <div style="font-size:11px;color:var(--text3)">v${version}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px">Electron · better-sqlite3 · Maestro CLI · ADB</div>
           </div>
@@ -144,7 +144,7 @@ window.PageSettings = (() => {
             <div style="font-size:11px;color:var(--text3)">
               <code id="log-path-display" style="font-family:var(--font-mono);font-size:10px;
                 background:var(--surface2);padding:1px 5px;border-radius:3px">
-                ~/Library/Application Support/testpilot/logs/
+                ~/Library/Application Support/mustlab/logs/
               </code>
             </div>
           </div>
@@ -245,8 +245,8 @@ window.PageSettings = (() => {
   }
 
   // ── Deps renderer ───────────────────────────────────────────
-  function _renderDeps(deps, testpilotDir) {
-    const tp = testpilotDir || '~/.testpilot'
+  function _renderDeps(deps, mustlabDir) {
+    const tp = mustlabDir || '~/.mustlab'
     const isMac = navigator.platform?.startsWith('Mac') || navigator.userAgent?.includes('Mac')
 
     const androidItems = [
@@ -273,7 +273,7 @@ window.PageSettings = (() => {
         label: 'Maestro CLI',
         ok: deps.maestro?.ok,
         path: deps.maestro?.path || '—',
-        source: 'Download dari GitHub releases → ~/.testpilot/bin/maestro/',
+        source: 'Download dari GitHub releases → ~/.mustlab/bin/maestro/',
         guide: deps.maestro?.ok ? null :
           `Maestro CLI tidak ditemukan. Klik <b>Setup Wizard</b> untuk install otomatis.`,
       },
@@ -346,7 +346,7 @@ window.PageSettings = (() => {
 
   function _adbSource(p, tp) {
     if (!p || p === '—') return 'Mencari di Android SDK, ' + tp + '/adb/, dan PATH system'
-    if (p.includes('.testpilot') || p.includes(tp)) return 'Bundle di app → ' + tp + '/adb/'
+    if (p.includes('.mustlab') || p.includes(tp)) return 'Bundle di app → ' + tp + '/adb/'
     if (p.includes('Android/sdk') || p.includes('Android/Sdk')) return 'Android SDK dari Android Studio'
     return 'Terdeteksi dari system PATH'
   }
@@ -354,7 +354,7 @@ window.PageSettings = (() => {
   function _javaSource(p, tp) {
     if (!p || p === '—') return 'Mencari di ' + tp + '/java/ dan PATH system'
     if (p === 'java (system)') return 'Java dari system PATH (bukan dari Setup Wizard — ini OK)'
-    if (p.includes('.testpilot') || p.includes(tp)) return 'Temurin JRE 17 (didownload Setup Wizard → ' + tp + '/java/)'
+    if (p.includes('.mustlab') || p.includes(tp)) return 'Temurin JRE 17 (didownload Setup Wizard → ' + tp + '/java/)'
     return 'Java dari system PATH'
   }
 
@@ -364,7 +364,7 @@ window.PageSettings = (() => {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i>' }
     const [deps, tp] = await Promise.all([
       window.api.setup.checkDeps().catch(() => ({})),
-      window.api.system.getTestpilotDir().catch(() => '~/.testpilot'),
+      window.api.system.getmustlabDir().catch(() => '~/.mustlab'),
     ])
     const list = document.getElementById('deps-list')
     if (list) list.innerHTML = _renderDeps(deps, tp)

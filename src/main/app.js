@@ -10,6 +10,9 @@ const db     = require('../store/database')
 let mainWindow = null
 
 async function createApp() {
+  // Update log dir ke userData sekarang app sudah ready
+  logger.setLogDir()
+
   // Init database PERTAMA
   db.init()
 

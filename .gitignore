@@ -5,7 +5,7 @@ dist/
 
 # User data — jangan pernah commit
 userData/
-~/.testpilot/
+~/.mustlab/
 
 # Logs
 *.log

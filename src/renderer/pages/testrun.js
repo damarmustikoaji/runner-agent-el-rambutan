@@ -264,7 +264,7 @@ window.PageTestRun = (() => {
               <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Folder Simpan</div>
               <div style="display:flex;gap:5px">
                 <input type="text" id="ev-dir" value="${esc(evidenceDir)}"
-                  placeholder="~/Desktop/testpilot-evidence" readonly
+                  placeholder="~/Desktop/mustlab-evidence" readonly
                   style="flex:1;font-size:10px;font-family:var(--font-mono);
                     background:var(--surface2);cursor:pointer"
                   onclick="PageTestRun.pickEvidenceDir()">

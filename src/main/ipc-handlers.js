@@ -284,8 +284,7 @@ function registerAllHandlers(win) {
   })
 
   handle('system:getLogPath', async () => {
-    const path = require('path')
-    return path.join(app.getPath('userData'), 'logs')
+    return logger.getLogDir()
   })
 
   handle('system:readLogFile', async (_, filePath) => {

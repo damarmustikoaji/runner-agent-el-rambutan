@@ -215,7 +215,7 @@ window.PageReports = (() => {
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href = url
-    a.download = 'testpilot-reports-' + new Date().toISOString().slice(0,10) + '.csv'
+    a.download = 'mustlab-reports-' + new Date().toISOString().slice(0,10) + '.csv'
     a.click()
     URL.revokeObjectURL(url)
     toast('✅ CSV berhasil didownload')

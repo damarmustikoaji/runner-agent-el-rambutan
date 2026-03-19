@@ -3,9 +3,9 @@ window.PageSetup = (() => {
   'use strict'
 
   const STEPS = [
-    { key: 'adb',     title: 'ADB (Android Debug Bridge)', desc: 'Di-bundle di app, tinggal ekstrak ke ~/.testpilot/adb/' },
-    { key: 'java',    title: 'Java Runtime (JRE 17)',       desc: 'Download Temurin OpenJDK headless ~80MB → ~/.testpilot/java/' },
-    { key: 'maestro', title: 'Maestro CLI',                 desc: 'Download dari GitHub releases → ~/.testpilot/bin/' },
+    { key: 'adb',     title: 'ADB (Android Debug Bridge)', desc: 'Di-bundle di app, tinggal ekstrak ke ~/.mustlab/adb/' },
+    { key: 'java',    title: 'Java Runtime (JRE 17)',       desc: 'Download Temurin OpenJDK headless ~80MB → ~/.mustlab/java/' },
+    { key: 'maestro', title: 'Maestro CLI',                 desc: 'Download dari GitHub releases → ~/.mustlab/bin/' },
   ]
 
   let _depsStatus = {}
@@ -30,13 +30,13 @@ window.PageSetup = (() => {
         <div style="width:50px;height:50px;background:var(--accent);border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;margin:0 auto 12px">
           <i class="bi bi-send-fill"></i>
         </div>
-        <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:5px">Selamat Datang di TestPilot</div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:5px">Selamat Datang di MustLab</div>
         <div class="sm muted" style="line-height:1.65">Klik <strong>Mulai Setup</strong> untuk menyiapkan semua dependensi secara otomatis.</div>
       </div>
 
       <div class="info-box mb12">
         <div class="ib-ic"><i class="bi bi-folder2"></i></div>
-        <p>Semua file diinstall ke <code class="mono xs" style="background:rgba(59,126,237,.1);padding:1px 4px;border-radius:3px">~/.testpilot/</code> — tidak mengubah system PATH atau menginstall ke system directory.</p>
+        <p>Semua file diinstall ke <code class="mono xs" style="background:rgba(59,126,237,.1);padding:1px 4px;border-radius:3px">~/.mustlab/</code> — tidak mengubah system PATH atau menginstall ke system directory.</p>
       </div>
 
       <div id="setup-steps" class="mb12">
@@ -47,9 +47,9 @@ window.PageSetup = (() => {
         <div style="background:var(--green-bg);border:1px solid rgba(42,157,92,.25);border-radius:10px;padding:16px;text-align:center">
           <i class="bi bi-check-circle-fill" style="font-size:1.6rem;color:var(--green)"></i>
           <div class="fw7 mt6 mb4">Setup Selesai!</div>
-          <div class="xs muted mb10">Semua dependensi siap. TestPilot bisa digunakan.</div>
+          <div class="xs muted mb10">Semua dependensi siap. MustLab bisa digunakan.</div>
           <button class="btn btn-g" onclick="PageSetup.finishSetup()">
-            <i class="bi bi-arrow-right-circle-fill"></i> Mulai Gunakan TestPilot
+            <i class="bi bi-arrow-right-circle-fill"></i> Mulai Gunakan MustLab
           </button>
         </div>
       </div>
@@ -124,7 +124,7 @@ window.PageSetup = (() => {
                   ['2', 'Buka Device Manager', 'Android Studio → More Actions → Device Manager (atau menu Tools → Device Manager)', null],
                   ['3', 'Buat Virtual Device', 'Klik "+" → Pilih Pixel 6 → Next → Pilih API 31+ (Android 12) → Download jika belum → Next → Finish', null],
                   ['4', 'Jalankan Emulator', 'Klik tombol ▶ di Device Manager. Tunggu boot ~1-2 menit pertama kali', null],
-                  ['5', 'Cek di TestPilot', 'Emulator otomatis terdeteksi sebagai "emulator-5554" di panel Device', null],
+                  ['5', 'Cek di MustLab', 'Emulator otomatis terdeteksi sebagai "emulator-5554" di panel Device', null],
                 ].map(([n,t,d,u]) => `
                   <div style="display:flex;gap:8px;align-items:flex-start;
                     background:var(--surface2);border-radius:6px;padding:7px 10px">
@@ -243,7 +243,7 @@ window.PageSetup = (() => {
             <div>
               <div class="fw6 sm mb4">Boot simulator dan mulai testing</div>
               <div class="xs muted" style="line-height:1.75;margin-bottom:6px">
-                Buka Simulator dari Xcode atau terminal. TestPilot otomatis mendeteksi simulator yang Booted.
+                Buka Simulator dari Xcode atau terminal. MustLab otomatis mendeteksi simulator yang Booted.
               </div>
               <div style="background:#0d1117;border-radius:6px;padding:8px 12px;font-family:'Courier New',monospace;font-size:10px;line-height:1.9;color:#e6edf3">
                 <div><span style="color:#8b949e"># Boot simulator (atau buka dari Xcode menu)</span></div>
