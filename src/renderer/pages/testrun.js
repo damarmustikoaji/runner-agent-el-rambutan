@@ -151,7 +151,7 @@ window.PageTestRun = (() => {
 
     // Pre-fill dari run yang sedang diedit
     const prefill = _editingRunId && _activeRun ? _activeRun : null
-    const prefillName = prefill?.plan_name || 'Test Run'
+    const prefillName = prefill?.plan_name || ' '
     const prefillEnvName = prefill?.environment || ''
     const prefillSerial = prefill?.device
       ? (online.find(d => d.model === prefill.device || d.serial === prefill.device)?.serial || online[0]?.serial)
@@ -212,7 +212,7 @@ window.PageTestRun = (() => {
               Nama Run
             </label>
             <input type="text" id="run-name" value="${esc(prefillName)}" style="width:100%;font-size:12px"
-              oninput="PageTestRun._planName=this.value">
+              oninput="PageTestRun._planName=this.value" placeholder="Test Run 123" required>
           </div>
 
           <div>
@@ -386,13 +386,13 @@ window.PageTestRun = (() => {
             &nbsp;·&nbsp;<i class="bi bi-stopwatch"></i> ${dur}
           </div>
         </div>
-        <div style="display:flex;gap:10px;margin-left:auto;align-items:center">
-          ${total ? `
-          <div style="display:flex;gap:8px">
-            <span style="font-size:12px;font-weight:700;color:#16a34a">${_activeRun.pass||0} PASS</span>
-            <span style="font-size:12px;font-weight:700;color:#dc2626">${_activeRun.fail||0} FAIL</span>
-          </div>` : ''}
-          <span style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px;
+        <div style="display:flex;align-items:center;gap:8px">
+            ${total ? `
+            <div id="run-header-stats" style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:700;color:#16a34a">${_activeRun.pass||0} PASS</span>
+              <span style="font-size:12px;font-weight:700;color:#dc2626">${_activeRun.fail||0} FAIL</span>
+            </div>` : `<div id="run-header-stats"></div>`}
+          <span id="run-header-badge" style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px;
             background:${statusBg};color:${statusColor};text-transform:uppercase">
             ${_activeRun.status||'pending'}
           </span>
@@ -552,8 +552,8 @@ window.PageTestRun = (() => {
   }
 
   async function saveRunOnly() {
-    const runName = document.getElementById('run-name')?.value.trim() || 'Test Run'
-    const envId   = document.getElementById('run-env')?.value
+    const runName = document.getElementById('run-name')?.value.trim() || ''
+    const envId   = document.getElementById('run-env')?.value || '-- Tanpa environment --'
     const envs    = await window.api.db.getEnvs().catch(() => [])
     const env     = envs.find(e => e.id === envId)
     const serial  = document.getElementById('run-device')?.value || _selSerial || ''
@@ -717,7 +717,7 @@ window.PageTestRun = (() => {
       toast(`⚠️ ${noDSL.length} TC tidak punya steps — buka di Inspector dahulu`, 'error'); return
     }
 
-    const runName = document.getElementById('run-name')?.value.trim() || 'Test Run'
+    const runName = document.getElementById('run-name')?.value.trim() || ''
     const envId   = document.getElementById('run-env')?.value
     const envs    = await window.api.db.getEnvs().catch(() => [])
     const env     = envs.find(e => e.id === envId)
@@ -917,6 +917,29 @@ window.PageTestRun = (() => {
 
     appendLog('head', `Selesai: ${pass} PASS, ${fail} FAIL (${_fmtDuration(totalDur)})`)
     toast(fail ? `❌ ${fail} gagal, ${pass} lulus` : `✅ Semua ${pass} TC lulus!`, fail?'error':'success')
+
+    // Update header badge status
+    const headerBadge = document.getElementById('run-header-badge')
+    if (headerBadge) {
+      const sc = finalStatus==='pass' ? '#16a34a' : '#dc2626'
+      const sb = finalStatus==='pass' ? '#dcfce7' : '#fee2e2'
+      headerBadge.textContent = finalStatus.toUpperCase()
+      headerBadge.style.background = sb
+      headerBadge.style.color = sc
+    }
+    // Update pass/fail counter di header
+    const headerStats = document.getElementById('run-header-stats')
+    if (headerStats) {
+      headerStats.innerHTML = `
+        <span style="font-size:12px;font-weight:700;color:#16a34a">${pass} PASS</span>
+        <span style="font-size:12px;font-weight:700;color:#dc2626;margin-left:8px">${fail} FAIL</span>`
+    }
+    // Update progress bar ke 100%
+    const pbarFinal = document.getElementById('run-pbar')
+    if (pbarFinal) {
+      pbarFinal.style.width = '100%'
+      pbarFinal.style.background = fail > 0 ? '#dc2626' : '#16a34a'
+    }
 
     // Update topbar
     const ta = document.getElementById('topbar-actions')

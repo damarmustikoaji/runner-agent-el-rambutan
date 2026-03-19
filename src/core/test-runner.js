@@ -140,26 +140,37 @@ class TestRunner extends EventEmitter {
       try { fs.mkdirSync(tcFolder, { recursive: true }) } catch {}
     }
 
-    // ADB screenshot helper
-    const { getAdbPath } = require('../utils/process-utils')
-    const { execFile }   = require('child_process')
-    const adbPath        = getAdbPath()
+    // Screenshot helper — support Android (ADB) dan iOS (xcrun simctl)
+    const { execFile } = require('child_process')
+    const isIos = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(config.serial)
 
     const captureScreenshot = (label) => {
-      if (!tcFolder || !adbPath || !config.serial) return
-      const devicePath = '/data/local/tmp/testpilot_evidence.png'
-      const localPath  = path.join(tcFolder, `${label}.png`)
-      execFile(adbPath, ['-s', config.serial, 'exec-out', 'screencap', '-p'],
-        { encoding: 'buffer', timeout: 10000 },
-        (err, stdout) => {
-          if (!err && stdout && stdout.length > 4 &&
-              stdout[0]===0x89 && stdout[1]===0x50) {
-            fs.writeFile(localPath, stdout, () =>
-              logger.debug(`Evidence screenshot: ${localPath}`)
-            )
-          }
-        }
-      )
+      if (!tcFolder || !config.serial) return
+      const localPath = path.join(tcFolder, `${label}.png`)
+
+      if (isIos) {
+        // iOS Simulator: xcrun simctl io <udid> screenshot <file>
+        execFile('xcrun', ['simctl', 'io', config.serial, 'screenshot', localPath],
+          { timeout: 10000 },
+          (err) => {
+            if (err) logger.warn(`iOS evidence screenshot failed: ${err.message}`)
+            else logger.debug(`iOS evidence screenshot: ${localPath}`)
+          })
+      } else {
+        // Android: ADB exec-out screencap
+        const { getAdbPath } = require('../utils/process-utils')
+        const adbPath = getAdbPath()
+        execFile(adbPath, ['-s', config.serial, 'exec-out', 'screencap', '-p'],
+          { encoding: 'buffer', timeout: 10000 },
+          (err, stdout) => {
+            if (!err && stdout && stdout.length > 4 &&
+                stdout[0]===0x89 && stdout[1]===0x50) {
+              fs.writeFile(localPath, stdout, () =>
+                logger.debug(`Android evidence screenshot: ${localPath}`)
+              )
+            }
+          })
+      }
     }
 
     return new Promise((resolve, reject) => {
