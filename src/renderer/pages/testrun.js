@@ -151,7 +151,7 @@ window.PageTestRun = (() => {
 
     // Pre-fill dari run yang sedang diedit
     const prefill = _editingRunId && _activeRun ? _activeRun : null
-    const prefillName = prefill?.plan_name || ' '
+    const prefillName = prefill?.plan_name || ''
     const prefillEnvName = prefill?.environment || ''
     const prefillSerial = prefill?.device
       ? (online.find(d => d.model === prefill.device || d.serial === prefill.device)?.serial || online[0]?.serial)
@@ -209,10 +209,12 @@ window.PageTestRun = (() => {
           <div>
             <label style="font-size:10px;font-weight:700;color:var(--text3);
               text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:5px">
-              Nama Run
+              Nama Run <span style="color:var(--red)">*</span>
             </label>
-            <input type="text" id="run-name" value="${esc(prefillName)}" style="width:100%;font-size:12px"
-              oninput="PageTestRun._planName=this.value" placeholder="Test Run 123" required>
+            <input type="text" id="run-name" value="${esc(prefillName)}"
+              placeholder="Contoh: Smoke Test iOS v1.0"
+              style="width:100%;font-size:12px;border:1px solid ${!prefillName?'var(--red)':'var(--border)'};border-radius:6px"
+              oninput="PageTestRun._planName=this.value;this.style.borderColor=this.value.trim()?'var(--border)':'var(--red)'">
           </div>
 
           <div>
@@ -553,13 +555,27 @@ window.PageTestRun = (() => {
 
   async function saveRunOnly() {
     const runName = document.getElementById('run-name')?.value.trim() || ''
-    const envId   = document.getElementById('run-env')?.value || '-- Tanpa environment --'
-    const envs    = await window.api.db.getEnvs().catch(() => [])
-    const env     = envs.find(e => e.id === envId)
-    const serial  = document.getElementById('run-device')?.value || _selSerial || ''
-    const devInfo = AppState.devices?.find(d => d.serial === serial)
+    if (!runName) {
+      const inp = document.getElementById('run-name')
+      if (inp) { inp.style.borderColor='var(--red)'; inp.focus() }
+      toast('⚠️ Nama run wajib diisi', 'error'); return
+    }
+
+    if (!_selTCs.size) {
+      toast('⚠️ Pilih minimal 1 test case', 'error'); return
+    }
+
+    const serial = document.getElementById('run-device')?.value || _selSerial || ''
+    if (!serial) {
+      toast('⚠️ Pilih device terlebih dahulu', 'error'); return
+    }
 
     if (!_selProj) { toast('⚠️ Pilih project dulu', 'error'); return }
+
+    const envId   = document.getElementById('run-env')?.value
+    const envs    = await window.api.db.getEnvs().catch(() => [])
+    const env     = envs.find(e => e.id === envId)
+    const devInfo = AppState.devices?.find(d => d.serial === serial)
 
     let run
     if (_editingRunId) {
@@ -706,18 +722,27 @@ window.PageTestRun = (() => {
 
   // ── Run ───────────────────────────────────────────────────────
   async function startRun() {
-    if (!_selTCs.size) { toast('⚠️ Pilih TC dulu', 'error'); return }
+    const runName = document.getElementById('run-name')?.value.trim() || ''
+    if (!runName) {
+      const inp = document.getElementById('run-name')
+      if (inp) { inp.style.borderColor='var(--red)'; inp.focus() }
+      toast('⚠️ Nama run wajib diisi', 'error'); return
+    }
+
+    if (!_selTCs.size) {
+      toast('⚠️ Pilih minimal 1 test case', 'error'); return
+    }
 
     const serial = document.getElementById('run-device')?.value || _selSerial || AppState.connectedDevice?.serial
-    if (!serial) { toast('⚠️ Pilih device dulu', 'error'); return }
+    if (!serial) {
+      toast('⚠️ Pilih device terlebih dahulu', 'error'); return
+    }
 
     const sel = _allTCs.filter(t => _selTCs.has(t.id))
     const noDSL = sel.filter(tc => !tc.dsl_yaml && !tc.steps_yaml)
     if (noDSL.length) {
       toast(`⚠️ ${noDSL.length} TC tidak punya steps — buka di Inspector dahulu`, 'error'); return
     }
-
-    const runName = document.getElementById('run-name')?.value.trim() || ''
     const envId   = document.getElementById('run-env')?.value
     const envs    = await window.api.db.getEnvs().catch(() => [])
     const env     = envs.find(e => e.id === envId)
