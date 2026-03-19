@@ -1,7 +1,7 @@
 {
   "name": "mustlab",
   "version": "1.0.0",
-  "description": "MustLab \u2014 test automation for everyone. Android & iOS, maybe Web, no code needed.",
+  "description": "MustLab \u2014 test automation for everyone. Android & iOS & Maybe Web, no code needed.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

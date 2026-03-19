@@ -6,7 +6,9 @@ const SIGN_FOR_DISTRIBUTION = false
 module.exports = {
   packagerConfig: {
     name: 'MustLab',
-    executableName: 'mustlab',
+    executableName: 'MustLab',
+    appBundleId: 'com.mustlab.app',
+    appCopyright: `Copyright © ${new Date().getFullYear()} MustLab`,
     icon: path.join(__dirname, 'src/renderer/assets/icons/icon'),
     asar: {
       unpack: '**/*.{node,exe,dylib,so,dll}'
