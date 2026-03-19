@@ -18,10 +18,10 @@ window.PageSetup = (() => {
   async function render() {
     const content = document.getElementById('content-area')
     const ta      = document.getElementById('topbar-actions')
-    // ta.innerHTML = `
-    //   <button class="btn btn-p btn-sm" id="setup-start-btn" onclick="PageSetup.startInstall()">
-    //     <i class="bi bi-lightning-charge-fill"></i> Mulai Setup Otomatis
-    //   </button>`
+    ta.innerHTML = `
+      <button class="btn btn-p btn-sm" id="setup-start-btn" onclick="PageSetup.startInstall()">
+        <i class="bi bi-lightning-charge-fill"></i> Mulai Setup Otomatis
+      </button>`
 
     content.innerHTML = `
     <div style="max-width:600px;margin:0 auto;padding:10px 0">
@@ -164,12 +164,109 @@ window.PageSetup = (() => {
 
         </div>
       </div>
+
+      <!-- iOS Simulator Section -->
+      <div class="slbl mb8 mt12">
+        <i class="bi bi-apple" style="margin-right:4px"></i>iOS Simulator (opsional — untuk testing iOS)
+      </div>
+      <div class="card">
+        <div style="display:flex;flex-direction:column;gap:0">
+
+          <!-- iOS deps status -->
+          <div id="ios-deps-status" style="padding:10px 0;border-bottom:1px solid var(--border)">
+            <div class="xs muted">Memeriksa dependensi iOS...</div>
+          </div>
+
+          <!-- Step 1: Xcode -->
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="width:22px;height:22px;background:var(--blue);border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">1</span>
+            <div style="width:100%">
+              <div class="fw6 sm mb4">Install Xcode
+                <span style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:var(--blue);font-weight:400;margin-left:6px;font-size:10px"
+                  onclick="window.api.system.openExternal('https://apps.apple.com/app/xcode/id497799835')">
+                  Buka App Store <i class="bi bi-box-arrow-up-right" style="font-size:9px"></i>
+                </span>
+              </div>
+              <div class="xs muted" style="line-height:1.75">
+                Download Xcode dari App Store (~15GB). Setelah selesai, buka Xcode sekali untuk accept license, lalu jalankan di terminal:<br>
+              </div>
+              <div style="background:#0d1117;border-radius:6px;padding:8px 12px;font-family:'Courier New',monospace;font-size:10px;line-height:1.8;color:#e6edf3;margin-top:6px">
+                <div><span style="color:#3fb950">~</span> sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer</div>
+                <div><span style="color:#3fb950">~</span> sudo xcodebuild -license accept</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Simulator Runtime -->
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="width:22px;height:22px;background:var(--blue);border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">2</span>
+            <div>
+              <div class="fw6 sm mb4">Download iOS Simulator Runtime</div>
+              <div class="xs muted" style="line-height:1.75">
+                Xcode → Settings (⌘,) → Platforms → klik (+) di bawah → pilih iOS versi terbaru → Download (~7GB).
+                Atau via terminal:
+              </div>
+              <div style="background:#0d1117;border-radius:6px;padding:8px 12px;font-family:'Courier New',monospace;font-size:10px;line-height:1.8;color:#e6edf3;margin-top:6px">
+                <div><span style="color:#3fb950">~</span> xcodebuild -downloadPlatform iOS</div>
+                <div><span style="color:#3fb950">~</span> open -a Simulator</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Python + idb -->
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span style="width:22px;height:22px;background:var(--blue);border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">3</span>
+            <div style="width:100%">
+              <div class="fw6 sm mb4">Install idb — iOS Element Inspector</div>
+              <div class="xs muted" style="line-height:1.75;margin-bottom:6px">
+                idb (Facebook iOS Device Bridge) dibutuhkan untuk inspect element di iOS Simulator. Jalankan satu kali di terminal:
+              </div>
+              <div style="background:#0d1117;border-radius:6px;padding:8px 12px;font-family:'Courier New',monospace;font-size:10px;line-height:1.9;color:#e6edf3">
+                <div><span style="color:#8b949e"># 1. Install Homebrew (kalau belum ada)</span></div>
+                <div><span style="color:#3fb950">~</span> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</div>
+                <div style="margin-top:4px"><span style="color:#8b949e"># 2. Install idb companion (server)</span></div>
+                <div><span style="color:#3fb950">~</span> brew tap facebook/fb && brew install idb-companion</div>
+                <div style="margin-top:4px"><span style="color:#8b949e"># 3. Install Python 3.11 (idb client butuh 3.11, bukan 3.12+)</span></div>
+                <div><span style="color:#3fb950">~</span> brew install python@3.11</div>
+                <div style="margin-top:4px"><span style="color:#8b949e"># 4. Install idb client</span></div>
+                <div><span style="color:#3fb950">~</span> brew install pipx && pipx ensurepath</div>
+                <div><span style="color:#3fb950">~</span> pipx install fb-idb --python /usr/local/bin/python3.11</div>
+                <div style="margin-top:4px"><span style="color:#8b949e"># 5. Verifikasi</span></div>
+                <div><span style="color:#3fb950">~</span> idb list-targets</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Verifikasi -->
+          <div style="display:flex;gap:12px;padding:12px 0">
+            <span style="width:22px;height:22px;background:var(--blue);border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">4</span>
+            <div>
+              <div class="fw6 sm mb4">Boot simulator dan mulai testing</div>
+              <div class="xs muted" style="line-height:1.75;margin-bottom:6px">
+                Buka Simulator dari Xcode atau terminal. TestPilot otomatis mendeteksi simulator yang Booted.
+              </div>
+              <div style="background:#0d1117;border-radius:6px;padding:8px 12px;font-family:'Courier New',monospace;font-size:10px;line-height:1.9;color:#e6edf3">
+                <div><span style="color:#8b949e"># Boot simulator (atau buka dari Xcode menu)</span></div>
+                <div><span style="color:#3fb950">~</span> open -a Simulator</div>
+                <div style="margin-top:4px"><span style="color:#8b949e"># Cek simulator terdeteksi</span></div>
+                <div><span style="color:#3fb950">~</span> xcrun simctl list devices | grep Booted</div>
+                <div style="margin-top:4px"><span style="color:#8b949e"># Bundle ID app untuk test — contoh built-in apps:</span></div>
+                <div><span style="color:#ffa657">Contacts</span>: com.apple.MobileAddressBook</div>
+                <div><span style="color:#ffa657">Safari</span>&nbsp;&nbsp;: com.apple.mobilesafari</div>
+                <div><span style="color:#ffa657">Notes</span>&nbsp;&nbsp;&nbsp;: com.apple.mobilenotes</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>`
 
     await checkDeps()
     await scanDevices()
     startDevicePoll()
-    checkVersion()  // background — tidak blocking
+    checkVersion()
 
     window.api.device.onUpdate((devices) => {
       _devices = devices
@@ -381,18 +478,14 @@ window.PageSetup = (() => {
     try {
       _depsStatus = await window.api.setup.checkDeps()
       for (const [key, result] of Object.entries(_depsStatus)) {
-        updateStep(key, result.ok ? 'done' : 'wait')
+        if (['adb','java','maestro'].includes(key)) {
+          updateStep(key, result.ok ? 'done' : 'wait')
+        }
       }
 
-      // Maestro khusus: kalau file ada tapi tidak ok, tampilkan tombol fix permission
+      // Maestro fix hint
       const maestro = _depsStatus.maestro
-      if (maestro && !maestro.ok && maestro.path && maestro.path !== '/Users/damar/.testpilot/bin/maestro') {
-        // path bukan default = file sudah didownload tapi gagal exec
-        _showMaestroFixButton(maestro.path)
-      } else if (maestro && !maestro.ok) {
-        // Default path — cek apakah subfolder maestro/bin/maestro ada
-        _showMaestroFixButton(maestro.path)
-      }
+      if (maestro && !maestro.ok) _showMaestroFixButton(maestro.path)
 
       _setupDone = _depsStatus.adb?.ok && _depsStatus.java?.ok && _depsStatus.maestro?.ok
       if (_setupDone) {
@@ -401,9 +494,54 @@ window.PageSetup = (() => {
         if (doneBox) doneBox.style.display = 'block'
         if (startBtn) startBtn.style.display = 'none'
       }
+
+      // Render iOS deps status (macOS only)
+      _renderIosDeps(_depsStatus)
+
     } catch (err) {
       console.warn('[setup] checkDeps error:', err)
     }
+  }
+
+  function _renderIosDeps(deps) {
+    const el = document.getElementById('ios-deps-status')
+    if (!el) return
+
+    const isMac = navigator.platform.startsWith('Mac') || navigator.userAgent.includes('Mac')
+    if (!isMac) {
+      el.innerHTML = `<div class="xs muted">iOS Simulator hanya tersedia di macOS.</div>`
+      return
+    }
+
+    const items = [
+      { key: 'xcode',        label: 'Xcode',         icon: 'bi-apple' },
+      { key: 'idbCompanion', label: 'idb-companion',  icon: 'bi-braces' },
+      { key: 'idb',          label: 'idb (client)',   icon: 'bi-braces-asterisk' },
+    ]
+
+    el.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">
+        Status dependensi iOS
+        ${deps.xcode && deps.idbCompanion && deps.idb && deps.xcode.ok && deps.idbCompanion.ok && deps.idb.ok
+          ? '<span style="color:var(--green);margin-left:8px">✓ Semua siap</span>'
+          : '<span style="color:var(--yellow);margin-left:8px">⚠️ Belum lengkap — ikuti panduan di bawah</span>'}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${items.map(item => {
+          const d = deps[item.key]
+          const ok = d?.ok
+          return `
+          <div style="display:flex;align-items:center;gap:5px;padding:4px 10px;
+            border-radius:6px;font-size:11px;
+            background:${ok?'var(--green-bg)':'var(--surface2)'};
+            border:1px solid ${ok?'rgba(42,157,92,.2)':'var(--border)'}">
+            <i class="bi ${ok?'bi-check-circle-fill':'bi-circle'}"
+              style="color:${ok?'var(--green)':'var(--text3)'}"></i>
+            <span style="color:${ok?'var(--green)':'var(--text2)'}">${item.label}</span>
+            ${ok&&d.path ? `<span style="font-size:9px;color:var(--text3);font-family:monospace;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.path.replace(/^\/Users\/[^/]+/,'~')}</span>` : ''}
+          </div>`
+        }).join('')}
+      </div>`
   }
 
   function _showMaestroFixButton(maestroPath) {

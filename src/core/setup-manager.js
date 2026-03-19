@@ -53,13 +53,84 @@ class SetupManager extends EventEmitter {
   // ── Check ──────────────────────────────────────────────────
 
   async checkAll() {
+    const { execFile } = require('child_process')
+    const os   = require('os')
+    const path = require('path')
+    const fs   = require('fs')
+
+    // iOS checks hanya di macOS
+    const isMac = process.platform === 'darwin'
+    const iosChecks = isMac ? {
+      xcode:          await this._checkXcode(),
+      idbCompanion:   await this._checkIdbCompanion(),
+      idb:            await this._checkIdb(),
+    } : {}
+
     const results = {
       adb:     await this._checkAdb(),
       java:    await this._checkJava(),
       maestro: await this._checkMaestro(),
+      ...iosChecks,
     }
     logger.info('Setup check results:', results)
     return results
+  }
+
+  // ── iOS Dependency Checks ─────────────────────────────────
+
+  async _checkXcode() {
+    const { execFile } = require('child_process')
+    return new Promise(resolve => {
+      execFile('xcode-select', ['-p'], { timeout: 5000 }, (err, stdout) => {
+        if (err || !stdout.trim()) return resolve({ ok: false, path: null })
+        const p = stdout.trim()
+        // Harus pointing ke Xcode.app bukan hanya CLT
+        const isFullXcode = p.includes('Xcode.app')
+        resolve({ ok: isFullXcode, path: p, cltOnly: !isFullXcode })
+      })
+    })
+  }
+
+  async _checkIdbCompanion() {
+    const { execFile } = require('child_process')
+    const candidates = [
+      '/usr/local/bin/idb_companion',
+      '/opt/homebrew/bin/idb_companion',
+    ]
+    for (const p of candidates) {
+      if (require('fs').existsSync(p)) {
+        return { ok: true, path: p }
+      }
+    }
+    // Try which
+    return new Promise(resolve => {
+      execFile('which', ['idb_companion'], { timeout: 3000 }, (err, stdout) => {
+        if (!err && stdout.trim()) return resolve({ ok: true, path: stdout.trim() })
+        resolve({ ok: false, path: null })
+      })
+    })
+  }
+
+  async _checkIdb() {
+    const os   = require('os')
+    const path = require('path')
+    const fs   = require('fs')
+    const { execFile } = require('child_process')
+
+    const candidates = [
+      path.join(os.homedir(), '.local', 'bin', 'idb'),
+      '/usr/local/bin/idb',
+      '/opt/homebrew/bin/idb',
+    ]
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return { ok: true, path: p }
+    }
+    return new Promise(resolve => {
+      execFile('which', ['idb'], { timeout: 3000 }, (err, stdout) => {
+        if (!err && stdout.trim()) return resolve({ ok: true, path: stdout.trim() })
+        resolve({ ok: false, path: null })
+      })
+    })
   }
 
   async _checkAdb() {

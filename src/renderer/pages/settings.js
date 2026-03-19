@@ -139,20 +139,20 @@ window.PageSettings = (() => {
   // ── Deps renderer ───────────────────────────────────────────
   function _renderDeps(deps, testpilotDir) {
     const tp = testpilotDir || '~/.testpilot'
+    const isMac = process.platform === 'darwin' ||
+      navigator.platform?.startsWith('Mac') ||
+      navigator.userAgent?.includes('Mac')
 
-    const items = [
+    const androidItems = [
       {
         label: 'ADB (Android Debug Bridge)',
         ok: deps.adb?.ok,
         path: deps.adb?.path || '—',
         source: _adbSource(deps.adb?.path, tp),
         guide: deps.adb?.ok ? null :
-          `ADB tidak ditemukan di ~/.testpilot/adb/ maupun system PATH.<br>
-           <b>Solusi:</b> Pastikan Android Studio sudah terinstall — ADB ada di
-           <code style="font-family:var(--font-mono);font-size:10px">~/Library/Android/sdk/platform-tools/adb</code>.<br>
-           Atau download manual dari
+          `ADB tidak ditemukan. Pastikan Android Studio terinstall, atau download
            <a href="#" onclick="window.api.system.openExternal('https://developer.android.com/tools/releases/platform-tools');return false"
-             style="color:var(--blue)">developer.android.com/tools/releases/platform-tools</a>
+             style="color:var(--blue)">Platform Tools</a>
            dan extract ke <code style="font-family:var(--font-mono);font-size:10px">${tp}/adb/</code>`,
       },
       {
@@ -161,10 +161,7 @@ window.PageSettings = (() => {
         path: deps.java?.path || '—',
         source: _javaSource(deps.java?.path, tp),
         guide: deps.java?.ok ? null :
-          `Java tidak ditemukan. Klik <b>Setup Wizard</b> untuk download otomatis Temurin JRE 17 (~80MB).<br>
-           Atau install manual dari
-           <a href="#" onclick="window.api.system.openExternal('https://adoptium.net');return false"
-             style="color:var(--blue)">adoptium.net</a>`,
+          `Java tidak ditemukan. Klik <b>Setup Wizard</b> untuk download otomatis Temurin JRE 17 (~80MB).`,
       },
       {
         label: 'Maestro CLI',
@@ -176,7 +173,47 @@ window.PageSettings = (() => {
       },
     ]
 
-    return items.map(item => `
+    const iosItems = isMac ? [
+      {
+        label: 'Xcode (iOS)',
+        ok: deps.xcode?.ok,
+        path: deps.xcode?.path || '—',
+        source: deps.xcode?.cltOnly
+          ? 'Command Line Tools saja — Xcode.app belum terinstall'
+          : 'Xcode Developer Tools',
+        guide: deps.xcode?.ok ? null :
+          `Xcode belum terinstall atau belum dikonfigurasi.<br>
+           <a href="#" onclick="window.api.system.openExternal('https://apps.apple.com/app/xcode/id497799835');return false"
+             style="color:var(--blue)">Download dari App Store</a>, lalu:
+           <code style="font-family:var(--font-mono);font-size:10px;display:block;margin-top:4px">
+           sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer</code>`,
+      },
+      {
+        label: 'idb-companion (iOS)',
+        ok: deps.idbCompanion?.ok,
+        path: deps.idbCompanion?.path || '—',
+        source: 'brew tap facebook/fb && brew install idb-companion',
+        guide: deps.idbCompanion?.ok ? null :
+          `idb-companion tidak ditemukan. Install via Homebrew:<br>
+           <code style="font-family:var(--font-mono);font-size:10px">
+           brew tap facebook/fb && brew install idb-companion</code>`,
+      },
+      {
+        label: 'idb client (iOS)',
+        ok: deps.idb?.ok,
+        path: deps.idb?.path || '—',
+        source: 'pipx install fb-idb --python python3.11',
+        guide: deps.idb?.ok ? null :
+          `idb client tidak ditemukan. Install:<br>
+           <code style="font-family:var(--font-mono);font-size:10px">
+           brew install python@3.11 pipx<br>
+           pipx install fb-idb --python /usr/local/bin/python3.11</code>`,
+      },
+    ] : []
+
+    const allItems = [...androidItems, ...iosItems]
+
+    return allItems.map(item => `
       <div style="padding:10px 12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;
         border-left:3px solid ${item.ok ? 'var(--green)' : 'var(--red)'}">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
@@ -196,8 +233,7 @@ window.PageSettings = (() => {
         <div style="margin-top:8px;padding:8px 10px;background:var(--yellow-bg);
           border:1px solid rgba(196,125,14,.2);border-radius:6px;font-size:11px;
           color:var(--text2);line-height:1.7">
-          <i class="bi bi-lightbulb" style="color:var(--yellow)"></i>&nbsp;
-          ${item.guide}
+          <i class="bi bi-lightbulb" style="color:var(--yellow)"></i>&nbsp;${item.guide}
         </div>` : ''}
       </div>`).join('')
   }

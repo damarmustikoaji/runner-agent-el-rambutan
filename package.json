@@ -1,7 +1,7 @@
 {
   "name": "testpilot",
   "version": "1.0.0",
-  "description": "Local Mobile Test Runner Agent - Android Inspector & Test Executor",
+  "description": "Mobile Test Runner Agent \u2014 Android & iOS Simulator. No-code test automation for QA teams.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -14,9 +14,13 @@
   "keywords": [
     "electron",
     "android",
+    "ios",
+    "simulator",
     "test",
     "maestro",
-    "adb"
+    "adb",
+    "qa",
+    "automation"
   ],
   "author": "TestPilot",
   "license": "MIT",

@@ -387,21 +387,36 @@ class Inspector {
    */
   // ── iOS Simulator specific ────────────────────────────────
 
-  async _dumpXmlIos(udid) {
-    const { execFile } = require('child_process')
-
-    // Cari idb path — bisa di ~/.local/bin/idb atau /usr/local/bin/idb
+  async _resolveIdbPath() {
+    // Cari idb dari checkDeps cache dulu, lalu fallback ke known paths
     const os   = require('os')
     const path = require('path')
     const fs   = require('fs')
-    const idbPaths = [
+    const candidates = [
       path.join(os.homedir(), '.local', 'bin', 'idb'),
       '/usr/local/bin/idb',
       '/opt/homebrew/bin/idb',
     ]
-    const idbPath = idbPaths.find(p => fs.existsSync(p))
+    // Coba which sebagai last resort
+    const found = candidates.find(p => fs.existsSync(p))
+    if (found) return found
+    return new Promise(resolve => {
+      require('child_process').execFile('which', ['idb'], { timeout: 3000 },
+        (err, stdout) => resolve(!err && stdout.trim() ? stdout.trim() : null))
+    })
+  }
+
+  async _dumpXmlIos(udid) {
+    const { execFile } = require('child_process')
+    const idbPath = await this._resolveIdbPath()
     if (!idbPath) {
-      throw new Error('idb tidak ditemukan. Install dengan: pipx install fb-idb')
+      throw new Error(
+        'idb tidak ditemukan.\n' +
+        'Install dengan:\n' +
+        '  brew install pipx\n' +
+        '  pipx install fb-idb --python /usr/local/bin/python3.11\n' +
+        'Pastikan Python 3.11 sudah terinstall (brew install python@3.11)'
+      )
     }
 
     return new Promise((resolve, reject) => {
@@ -513,20 +528,10 @@ class Inspector {
 
     // ── iOS Simulator: idb ui tap ─────────────────────────────
     if (_isIosSim(serial)) {
-      const { execFile } = require('child_process')
-      const os   = require('os')
-      const path = require('path')
-      const fs   = require('fs')
-      const idbPaths = [
-        path.join(os.homedir(), '.local', 'bin', 'idb'),
-        '/usr/local/bin/idb',
-        '/opt/homebrew/bin/idb',
-      ]
-      const idbPath = idbPaths.find(p => fs.existsSync(p))
-
+      const idbPath = await this._resolveIdbPath()
       if (!idbPath) {
         logger.warn('idb tidak ditemukan untuk tap iOS')
-        return { ok: false, x: xInt, y: yInt, error: 'idb tidak ditemukan' }
+        return { ok: false, x: xInt, y: yInt, error: 'idb tidak ditemukan — install fb-idb dulu' }
       }
 
       return new Promise((resolve) => {
