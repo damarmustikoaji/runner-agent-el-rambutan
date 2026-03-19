@@ -511,24 +511,37 @@ class Inspector {
     const yInt = Math.round(y)
     logger.info(`Inspector tap: ${serial} @ (${xInt}, ${yInt})`)
 
-    // ── iOS Simulator: xcrun simctl io touch ─────────────────
+    // ── iOS Simulator: idb ui tap ─────────────────────────────
     if (_isIosSim(serial)) {
       const { execFile } = require('child_process')
+      const os   = require('os')
+      const path = require('path')
+      const fs   = require('fs')
+      const idbPaths = [
+        path.join(os.homedir(), '.local', 'bin', 'idb'),
+        '/usr/local/bin/idb',
+        '/opt/homebrew/bin/idb',
+      ]
+      const idbPath = idbPaths.find(p => fs.existsSync(p))
+
+      if (!idbPath) {
+        logger.warn('idb tidak ditemukan untuk tap iOS')
+        return { ok: false, x: xInt, y: yInt, error: 'idb tidak ditemukan' }
+      }
+
       return new Promise((resolve) => {
-        // simctl tidak punya direct tap — pakai AppleScript
-        execFile('osascript', ['-e',
-          `tell application "Simulator" to activate`], {}, () => {})
-        setTimeout(() => {
-          execFile('xcrun', ['simctl', 'io', serial, 'performTouch',
-            `{"x":${xInt},"y":${yInt}}`], { timeout: 5000 },
-            (err) => {
-              if (err) {
-                // Fallback: cguserinput via private API
-                logger.warn(`simctl touch failed, trying coreSimulator: ${err.message}`)
-              }
+        execFile(idbPath,
+          ['ui', 'tap', String(xInt), String(yInt), '--udid', serial],
+          { timeout: 8000 },
+          (err) => {
+            if (err) {
+              logger.warn(`idb tap failed: ${err.message}`)
+              resolve({ ok: false, x: xInt, y: yInt, error: err.message })
+            } else {
+              logger.info(`iOS tap OK via idb @ (${xInt}, ${yInt})`)
               resolve({ ok: true, x: xInt, y: yInt })
-            })
-        }, 200)
+            }
+          })
       })
     }
 
