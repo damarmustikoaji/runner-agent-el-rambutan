@@ -454,10 +454,9 @@ window.PageInspector = (() => {
     // Info banner untuk iOS Simulator
     const isIos = _serial && /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(_serial)
     const iosBanner = isIos ? `
-      <div style="padding:8px 10px;background:var(--blue-bg);border-bottom:1px solid rgba(59,126,237,.2);
-        font-size:10px;color:var(--blue);line-height:1.5">
-        <i class="bi bi-apple"></i> <b>iOS Simulator</b> — Element inspector terbatas tanpa idb.
-        Screenshot dan run test tetap berfungsi penuh.
+      <div style="padding:6px 10px;background:var(--blue-bg);border-bottom:1px solid rgba(59,126,237,.2);
+        font-size:10px;color:var(--blue)">
+        <i class="bi bi-apple"></i> <b>iOS Simulator</b> via idb
       </div>` : ''
 
     if (!_elements.length) return `${iosBanner}

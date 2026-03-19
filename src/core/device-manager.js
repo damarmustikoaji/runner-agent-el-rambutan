@@ -412,33 +412,6 @@ class DeviceManager extends EventEmitter {
   }
 
   /**
-   * Dapatkan package/activity yang sedang aktif (foreground app)
-   */
-  async getActiveApp(serial) {
-    try {
-      // Method 1: dumpsys activity
-      const { stdout: a } = await adbDevice(serial, ['shell', 'dumpsys', 'activity', 'activities'], { timeout: 6000 })
-      const m1 = a.match(/mResumedActivity[^\n]*?\s+([\w.]+)\/([\w.$]+)/)
-      if (m1) {
-        const pkg = m1[1], act = m1[2].startsWith('.') ? m1[1] + m1[2] : m1[2]
-        return { package: pkg, activity: act, full: `${pkg}/${act}` }
-      }
-      // Method 2: dumpsys window
-      const { stdout: w } = await adbDevice(serial, ['shell', 'dumpsys', 'window'], { timeout: 6000 })
-      const m2 = w.match(/mCurrentFocus[^\n]*\s+([\w.]+)\/([\w.$]+)/)
-             || w.match(/mFocusedApp[^\n]*\s+([\w.]+)\/([\w.$]+)/)
-      if (m2) {
-        const pkg = m2[1], act = m2[2].startsWith('.') ? m2[1] + m2[2] : m2[2]
-        return { package: pkg, activity: act, full: `${pkg}/${act}` }
-      }
-      return null
-    } catch (err) {
-      logger.warn('getActiveApp failed:', err.message)
-      return null
-    }
-  }
-
-  /**
    * Dapatkan daftar activity dari package via pm dump
    */
   async getActivities(serial, packageName) {

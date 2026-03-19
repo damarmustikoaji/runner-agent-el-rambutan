@@ -388,48 +388,122 @@ class Inspector {
   // ── iOS Simulator specific ────────────────────────────────
 
   async _dumpXmlIos(udid) {
-    // Maestro bisa dump hierarchy via idb atau xcrun accessibility
-    // Fallback: gunakan simctl untuk capture dan parse UI
     const { execFile } = require('child_process')
-    const getMaestroPath = require('../utils/process-utils').getMaestroPath
-    const maestroPath = getMaestroPath()
-    const tmpFile = path.join(os.tmpdir(), `testpilot_ios_ui_${Date.now()}.json`)
 
-    // Coba via Maestro hierarchy (paling akurat)
+    // Cari idb path — bisa di ~/.local/bin/idb atau /usr/local/bin/idb
+    const os   = require('os')
+    const path = require('path')
+    const fs   = require('fs')
+    const idbPaths = [
+      path.join(os.homedir(), '.local', 'bin', 'idb'),
+      '/usr/local/bin/idb',
+      '/opt/homebrew/bin/idb',
+    ]
+    const idbPath = idbPaths.find(p => fs.existsSync(p))
+    if (!idbPath) {
+      throw new Error('idb tidak ditemukan. Install dengan: pipx install fb-idb')
+    }
+
     return new Promise((resolve, reject) => {
-      // xcrun accessibility — tidak selalu tersedia, tapi ringan
-      execFile('xcrun', ['simctl', 'launch', udid, 'com.apple.Accessibility'],
-        { timeout: 3000 }, () => {}) // ignore error
-
-      // Pakai idb_companion kalau ada, fallback ke fake hierarchy
-      execFile('xcrun', ['simctl', 'io', udid, 'screenshot', path.join(os.tmpdir(), 'probe.png')],
-        { timeout: 5000 },
-        async (err) => {
-          if (err) return reject(new Error('iOS: tidak bisa connect ke simulator'))
-
-          // Build minimal hierarchy dari screenshot dimensions
-          // (tanpa idb/WDA, kita hanya bisa screenshot — element inspector terbatas)
-          const fakeXml = `<?xml version="1.0" encoding="UTF-8"?>
-<hierarchy rotation="0">
-  <node index="0" text="" resource-id="" class="XCUIElementTypeApplication"
-    package="" content-desc="" checkable="false" checked="false"
-    clickable="false" enabled="true" focusable="false" focused="false"
-    scrollable="false" long-clickable="false" password="false" selected="false"
-    bounds="[0,0][390,844]">
-    <node index="0" text="iOS Simulator" resource-id="" class="XCUIElementTypeWindow"
-      package="" content-desc="" checkable="false" checked="false"
-      clickable="true" enabled="true" focusable="true" focused="false"
-      scrollable="false" long-clickable="false" password="false" selected="false"
-      bounds="[0,0][390,844]"/>
-  </node>
-</hierarchy>`
+      // idb ui describe-all — return JSON array semua elements
+      execFile(idbPath,
+        ['ui', 'describe-all', '--udid', udid],
+        { timeout: 15000, maxBuffer: 10 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err && !stdout) {
+            // Coba connect dulu lalu retry
+            execFile(idbPath, ['connect', udid], { timeout: 5000 }, () => {
+              execFile(idbPath,
+                ['ui', 'describe-all', '--udid', udid],
+                { timeout: 15000, maxBuffer: 10 * 1024 * 1024 },
+                (err2, stdout2) => {
+                  if (err2 && !stdout2) return reject(new Error(`idb describe-all failed: ${err2.message}`))
+                  try {
+                    const result = this._parseIdbToXml(stdout2 || '[]', udid)
+                    resolve(result)
+                  } catch (e) { reject(e) }
+                })
+            })
+            return
+          }
           try {
-            const tree = this._parseXmlToTree(fakeXml)
-            resolve({ xml: fakeXml, tree, source: 'ios-simctl',
-              warning: 'iOS element inspector terbatas tanpa idb — tap by coordinate masih bisa dipakai' })
+            const result = this._parseIdbToXml(stdout || '[]', udid)
+            resolve(result)
           } catch (e) { reject(e) }
         })
     })
+  }
+
+  _parseIdbToXml(jsonStr, udid) {
+    // Parse JSON array dari idb → XML hierarchy format UIAutomator
+    // agar bisa dipakai oleh _parseXmlToTree yang sudah ada
+    let elements = []
+    try {
+      // idb kadang output multiple JSON objects atau array
+      const clean = jsonStr.trim()
+      if (clean.startsWith('[')) {
+        elements = JSON.parse(clean)
+      } else {
+        // newline-delimited JSON
+        elements = clean.split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
+      }
+    } catch (e) {
+      logger.warn(`_parseIdbToXml: JSON parse failed: ${e.message}`)
+      elements = []
+    }
+
+    if (!elements.length) {
+      throw new Error('idb: tidak ada element. Pastikan app terbuka di simulator.')
+    }
+
+    // Convert ke XML format UIAutomator-compatible
+    const toXmlNode = (el) => {
+      const f     = el.frame || {}
+      const x1    = Math.round(f.x || 0)
+      const y1    = Math.round(f.y || 0)
+      const x2    = Math.round((f.x || 0) + (f.width || 0))
+      const y2    = Math.round((f.y || 0) + (f.height || 0))
+      const bounds = `[${x1},${y1}][${x2},${y2}]`
+
+      // Map iOS type → Android-like class untuk kompatibilitas parser
+      const typeMap = {
+        'Application':  'XCUIElementTypeApplication',
+        'Button':       'XCUIElementTypeButton',
+        'StaticText':   'XCUIElementTypeStaticText',
+        'TextField':    'XCUIElementTypeTextField',
+        'Image':        'XCUIElementTypeImage',
+        'Cell':         'XCUIElementTypeCell',
+        'Table':        'XCUIElementTypeTable',
+        'Heading':      'XCUIElementTypeStaticText',
+        'Group':        'XCUIElementTypeOther',
+        'Slider':       'XCUIElementTypeSlider',
+        'ScrollView':   'XCUIElementTypeScrollView',
+        'Switch':       'XCUIElementTypeSwitch',
+        'Other':        'XCUIElementTypeOther',
+      }
+      const cls  = typeMap[el.type] || `XCUIElementType${el.type || 'Other'}`
+      const text = (el.AXLabel || el.AXValue || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const uid  = el.AXUniqueId || ''
+      const enabled  = el.enabled !== false ? 'true' : 'false'
+      const clickable = ['Button','Cell','TextField','Switch','Slider'].includes(el.type) ? 'true' : 'false'
+
+      return `<node class="${cls}" text="${text}" resource-id="${uid}" ` +
+             `content-desc="${text}" bounds="${bounds}" ` +
+             `clickable="${clickable}" enabled="${enabled}" ` +
+             `checkable="false" checked="false" focusable="${clickable}" ` +
+             `focused="false" scrollable="false" long-clickable="false" ` +
+             `password="false" selected="false" index="0"/>`
+    }
+
+    const nodes = elements.map(toXmlNode).join('\n  ')
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  ${nodes}
+</hierarchy>`
+
+    logger.debug(`_parseIdbToXml: ${elements.length} elements → XML`)
+    const tree = this._parseXmlToTree(xml)
+    return { xml, tree, source: 'idb', elementCount: elements.length }
   }
 
   async tap(serial, x, y) {
