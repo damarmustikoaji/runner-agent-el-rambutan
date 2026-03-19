@@ -123,7 +123,7 @@ window.PageSettings = (() => {
       <div class="card">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
           <div>
-            <div style="font-size:15px;font-weight:700;margin-bottom:2px">mustlab</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:2px">MustLab</div>
             <div style="font-size:11px;color:var(--text3)">v${version}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px">Electron · better-sqlite3 · Maestro CLI · ADB</div>
           </div>

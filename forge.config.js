@@ -1,14 +1,12 @@
-/**
- * ./forge.config.js
- *
- */
-
 const path = require('path')
+
+// Set ke true hanya kalau punya Apple Developer certificate untuk distribusi
+const SIGN_FOR_DISTRIBUTION = false
 
 module.exports = {
   packagerConfig: {
     name: 'MustLab',
-    executableName: 'MustLab',
+    executableName: 'mustlab',
     icon: path.join(__dirname, 'src/renderer/assets/icons/icon'),
     asar: {
       unpack: '**/*.{node,exe,dylib,so,dll}'
@@ -23,12 +21,15 @@ module.exports = {
       /\.log$/,
       /node_modules\/\.cache/,
     ],
-    osxSign: {
-      optionsForFile: () => ({
-        entitlements: path.join(__dirname, 'resources/entitlements.mac.plist'),
-        entitlementsInherit: path.join(__dirname, 'resources/entitlements.mac.plist'),
-      }),
-    },
+    // osxSign hanya aktif untuk distribusi (butuh Apple Developer certificate)
+    ...(SIGN_FOR_DISTRIBUTION ? {
+      osxSign: {
+        optionsForFile: () => ({
+          entitlements: path.join(__dirname, 'resources/entitlements.mac.plist'),
+          entitlementsInherit: path.join(__dirname, 'resources/entitlements.mac.plist'),
+        }),
+      },
+    } : {}),
   },
 
   makers: [
@@ -42,9 +43,9 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'MustLab',
-        authors: 'damar',
-        exe: 'MustLab.exe'
+        name: 'mustlab',
+        authors: 'TestPilot Team',
+        exe: 'mustlab.exe'
       }
     },
     {

@@ -59,7 +59,7 @@ body {
 }
 .hbg:hover { background: var(--surface2); }
 .sb-brand   { display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; min-width: 0; }
-.sb-mark    { width: 24px; height: 24px; background: var(--accent); border-radius: 6px; color: #fff; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sb-mark    { width: 26px; height: 26px; border-radius: 7px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .sb-texts   { overflow: hidden; white-space: nowrap; }
 .sb-name    { font-weight: 700; font-size: 13px; letter-spacing: -.02em; }
 .sb-ver     { font-size: 9px; color: var(--text3); font-family: var(--font-mono); }

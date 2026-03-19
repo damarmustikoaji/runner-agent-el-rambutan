@@ -1,7 +1,7 @@
 {
   "name": "mustlab",
   "version": "1.0.0",
-  "description": "Click to test. That simple.",
+  "description": "MustLab \u2014 test automation for everyone. Android & iOS, maybe Web, no code needed.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -9,8 +9,7 @@
     "build": "electron-forge package",
     "make": "electron-forge make",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "uninstall": "rm -rf node_modules"
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "keywords": [
     "electron",
@@ -43,5 +42,6 @@
     "electron": "^29.1.0",
     "electron-rebuild": "^3.2.9",
     "nodemon": "^3.1.0"
-  }
+  },
+  "productName": "MustLab"
 }
