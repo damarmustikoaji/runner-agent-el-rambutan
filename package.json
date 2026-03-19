@@ -9,7 +9,8 @@
     "build": "electron-forge package",
     "make": "electron-forge make",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "uninstall": "rm -rf node_modules"
   },
   "keywords": [
     "electron",

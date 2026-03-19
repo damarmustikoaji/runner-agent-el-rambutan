@@ -133,7 +133,115 @@ window.PageSettings = (() => {
         </div>
         <div id="update-result"></div>
       </div>
+
+      <!-- Log & Diagnostik -->
+      <div class="card mt10" id="log-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div class="card-title" style="margin-bottom:2px">
+              <i class="bi bi-journal-text"></i> Log & Diagnostik
+            </div>
+            <div style="font-size:11px;color:var(--text3)">
+              <code id="log-path-display" style="font-family:var(--font-mono);font-size:10px;
+                background:var(--surface2);padding:1px 5px;border-radius:3px">
+                ~/Library/Application Support/testpilot/logs/
+              </code>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="btn btn-d btn-sm" id="log-level-btn"
+              onclick="PageSettings.toggleLogLevel()">
+              <i class="bi bi-bug"></i> <span id="log-level-label">Debug Mode</span>
+            </button>
+            <button class="btn btn-d btn-sm" onclick="PageSettings.openLogFolder()">
+              <i class="bi bi-folder2-open"></i> Buka Folder
+            </button>
+          </div>
+        </div>
+
+        <div id="log-viewer" style="background:#0d1117;border-radius:7px;
+          font-family:var(--font-mono);font-size:10px;line-height:1.8;
+          padding:10px 12px;max-height:240px;overflow-y:auto;color:#e6edf3">
+          <div style="color:#8b949e;text-align:center;padding:12px">
+            Klik "Muat Log" untuk lihat 100 baris terakhir
+          </div>
+        </div>
+        <button class="btn btn-d btn-sm w100" style="margin-top:8px"
+          onclick="PageSettings.loadRecentLog()">
+          <i class="bi bi-arrow-clockwise"></i> Muat Log Terbaru
+        </button>
+      </div>
     </div>`
+
+    // Load log path setelah render
+    window.api.system.getLogPath().then(p => {
+      window._logPath = p
+      const el = document.getElementById('log-path-display')
+      if (el) el.textContent = p.replace(/^\/Users\/[^/]+/, '~')
+    }).catch(() => {})
+    _updateLogLevelLabel()
+  }
+
+  function _updateLogLevelLabel() {
+    const isDebug = localStorage.getItem('tp_log_level') === 'debug'
+    const lbl = document.getElementById('log-level-label')
+    const btn = document.getElementById('log-level-btn')
+    if (lbl) lbl.textContent = isDebug ? 'Debug ON' : 'Debug Mode'
+    if (btn) btn.style.color = isDebug ? 'var(--blue)' : ''
+  }
+
+  async function openLogFolder() {
+    const p = window._logPath || await window.api.system.getLogPath().catch(() => null)
+    if (p) window.api.system.openExternal(p)
+    else toast('Folder log tidak ditemukan', 'error')
+  }
+
+  async function toggleLogLevel() {
+    const current = localStorage.getItem('tp_log_level') || 'info'
+    const next    = current === 'debug' ? 'info' : 'debug'
+    localStorage.setItem('tp_log_level', next)
+    window.api.system.log('info', 'Log level changed to: ' + next)
+    toast(next === 'debug' ? '🐛 Debug mode ON — log lebih verbose' : '✅ Debug mode OFF')
+    _updateLogLevelLabel()
+  }
+
+  async function loadRecentLog() {
+    const viewer = document.getElementById('log-viewer')
+    if (!viewer) return
+    viewer.innerHTML = '<div style="color:#8b949e;text-align:center;padding:12px"><i class="bi bi-arrow-clockwise" style="animation:spin .7s linear infinite"></i> Memuat...</div>'
+    try {
+      const logPath = window._logPath || await window.api.system.getLogPath().catch(() => '')
+      const today   = new Date().toISOString().slice(0, 10)
+      const logFile = logPath + '/app-' + today + '.log'
+      const result  = await window.api.system.readLogFile(logFile).catch(() => null)
+      if (!result) {
+        viewer.innerHTML = '<div style="color:#8b949e;padding:12px;text-align:center">Belum ada log hari ini.<br><span style="font-size:9px;opacity:.6">' + esc(logFile) + '</span></div>'
+        return
+      }
+      const lines = result.split('\n').filter(Boolean).slice(-100)
+      const colors = { error:'#ff7b72', warn:'#e3b341', info:'#79c0ff', debug:'#8b949e' }
+      viewer.innerHTML = lines.map(line => {
+        try {
+          const o   = JSON.parse(line)
+          const col = colors[o.level] || '#e6edf3'
+          const ts  = (o.timestamp || '').slice(11, 19)
+          const extras = Object.entries(o)
+            .filter(([k]) => !['level','message','timestamp'].includes(k))
+          const meta = extras.length
+            ? ' <span style="color:#8b949e;opacity:.7">' + esc(JSON.stringify(Object.fromEntries(extras)).slice(0, 80)) + '</span>'
+            : ''
+          return '<div><span style="color:#8b949e">' + ts + '</span> ' +
+            '<span style="color:' + col + '">' + (o.level||'').toUpperCase().padEnd(5) + '</span> ' +
+            esc(o.message || '') + meta + '</div>'
+        } catch {
+          return '<div style="color:#8b949e">' + esc(line.slice(0, 120)) + '</div>'
+        }
+      }).join('')
+      viewer.scrollTop = viewer.scrollHeight
+      toast('✅ ' + lines.length + ' baris log dimuat')
+    } catch (err) {
+      viewer.innerHTML = '<div style="color:#ff7b72;padding:8px">Gagal baca log: ' + esc(err.message) + '</div>'
+    }
   }
 
   // ── Deps renderer ───────────────────────────────────────────
@@ -285,19 +393,18 @@ window.PageSettings = (() => {
 
   async function clearData(type) {
     const msgs = {
-      db:       'Reset database? Semua project, TC, dan riwayat run akan dihapus. Binary tetap ada. Tidak bisa dibatalkan.',
+      db:       'Reset database? Semua project, TC, dan riwayat run akan dihapus. App akan restart otomatis.',
       evidence: 'Hapus cache download?',
-      binaries: 'Hapus semua binary dependency (ADB, Java, Maestro)? Setup Wizard harus dijalankan ulang.',
-      all:      'HAPUS SEMUA DATA DAN BINARY? Semua project, TC, riwayat run, dan dependencies akan dihapus. TIDAK BISA DIBATALKAN!',
+      binaries: 'Hapus semua binary dependency (ADB, Java, Maestro)? App akan restart ke Setup Wizard.',
+      all:      'HAPUS SEMUA DATA DAN BINARY? Tidak bisa dibatalkan! App akan restart otomatis.',
     }
     if (!confirm(msgs[type] || 'Lanjutkan?')) return
     try {
       const result = await window.api.system.clearData(type)
       toast(result.msg || 'Selesai', 'success')
-      if (type === 'all' || type === 'db') {
-        setTimeout(() => alert('Data dihapus. Restart TestPilot untuk setup ulang.'), 400)
-      }
-      render()
+      // App akan relaunch otomatis dari main process (db, binaries, all)
+      // Untuk cache: hanya toast, tidak perlu restart
+      if (type === 'evidence') render()
     } catch (err) {
       toast('Gagal: ' + err.message, 'error')
     }
@@ -350,5 +457,6 @@ window.PageSettings = (() => {
     }
   }
 
-  return { render, pickEvidenceDir, clearEvidenceDir, recheckDeps, checkUpdate, clearData }
+  return { render, pickEvidenceDir, clearEvidenceDir, recheckDeps, checkUpdate, clearData,
+           openLogFolder, toggleLogLevel, loadRecentLog }
 })()

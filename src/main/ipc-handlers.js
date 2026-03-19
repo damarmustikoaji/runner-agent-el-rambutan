@@ -315,31 +315,33 @@ function registerAllHandlers(win) {
     const testpilotDir  = path.join(os.homedir(), '.testpilot')
 
     if (type === 'db') {
-      // Hapus hanya database (reset data, binary tetap)
       const dbPath = path.join(userData, 'data', 'testpilot.db')
       if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath)
-      return { ok: true, msg: 'Database berhasil dihapus' }
+      // Relaunch otomatis setelah hapus DB
+      setTimeout(() => { app.relaunch(); app.exit(0) }, 500)
+      return { ok: true, msg: 'Database dihapus. Memulai ulang...' }
     }
 
     if (type === 'evidence') {
-      // Hapus cache/tmp saja — folder evidence milik user, jangan dihapus
       const cacheDir = path.join(testpilotDir, 'cache')
       if (fs.existsSync(cacheDir)) fs.rmSync(cacheDir, { recursive: true, force: true })
       return { ok: true, msg: 'Cache dihapus' }
     }
 
     if (type === 'binaries') {
-      // Hapus semua binary ~/.testpilot/ (ADB, Java, Maestro)
       if (fs.existsSync(testpilotDir)) fs.rmSync(testpilotDir, { recursive: true, force: true })
-      return { ok: true, msg: 'Binary dependencies dihapus. Jalankan Setup untuk install ulang.' }
+      // Relaunch agar Setup Wizard otomatis tampil
+      setTimeout(() => { app.relaunch(); app.exit(0) }, 500)
+      return { ok: true, msg: 'Binary dihapus. Memulai ulang ke Setup Wizard...' }
     }
 
     if (type === 'all') {
-      // Full uninstall — hapus semua data + binaries
       if (fs.existsSync(testpilotDir)) fs.rmSync(testpilotDir, { recursive: true, force: true })
       const dataDir = path.join(userData, 'data')
       if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true })
-      return { ok: true, msg: 'Semua data dan binary dihapus. Restart aplikasi untuk setup ulang.' }
+      // Relaunch — app akan mulai fresh seperti install baru
+      setTimeout(() => { app.relaunch(); app.exit(0) }, 500)
+      return { ok: true, msg: 'Semua data dihapus. Memulai ulang...' }
     }
 
     return { ok: false, msg: 'Type tidak dikenal' }
