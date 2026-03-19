@@ -278,6 +278,29 @@ function registerAllHandlers(win) {
 
   handle('system:getDataPath', async () => app.getPath('userData'))
 
+  handle('system:log', async (_, level, message, meta) => {
+    const safeLevel = ['debug','info','warn','error'].includes(level) ? level : 'info'
+    logger[safeLevel]('[renderer] ' + message, meta || {})
+  })
+
+  handle('system:getLogPath', async () => {
+    const path = require('path')
+    return path.join(app.getPath('userData'), 'logs')
+  })
+
+  handle('system:readLogFile', async (_, filePath) => {
+    const fs   = require('fs')
+    const path = require('path')
+    // Security: hanya boleh baca file di userData/logs
+    const logDir  = path.join(app.getPath('userData'), 'logs')
+    const resolved = path.resolve(filePath)
+    if (!resolved.startsWith(logDir)) {
+      throw new Error('Akses ditolak: hanya bisa baca file di folder log')
+    }
+    if (!fs.existsSync(resolved)) return null
+    return fs.readFileSync(resolved, 'utf8')
+  })
+
   handle('system:getTestpilotDir', async () => {
     const os   = require('os')
     const path = require('path')

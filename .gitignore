@@ -28,3 +28,10 @@ environments.enc.json
 .vscode/
 .idea/
 *.swp
+
+# Stale file — belum dihapus, tidak diload di index.html
+# src/renderer/pages/other-pages.js
+
+# resources/bin/ berisi binary — exclude tapi keep folder
+resources/bin/*
+!resources/bin/.gitkeep

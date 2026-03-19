@@ -7,7 +7,7 @@
     dashboard:    { title: 'Dashboard',          fn: () => window.PageDashboard?.render() },
     inspector:    { title: 'Inspector & Editor', fn: () => window.PageInspector?.render() },
     projects:     { title: 'Projects',           fn: () => window.PageProjects?.render() },
-    testrun:      { title: 'Test Run',    fn: () => window.PageTestRun?.render() },
+    testrun:      { title: 'Test Run / Plan',    fn: () => window.PageTestRun?.render() },
     reports:      { title: 'Reports & History',  fn: () => window.PageReports?.render() },
     environments: { title: 'Environments',       fn: () => window.PageEnvironments?.render() },
     settings:     { title: 'Settings',           fn: () => window.PageSettings?.render() },
@@ -55,14 +55,20 @@
       if (result && typeof result.catch === 'function') {
         result.catch(err => {
           console.error('[router] async render error:', err)
+          window.api?.system?.log?.('error', 'render:' + page, { message: err.message, stack: err.stack })
+          if (window.toast) toast('Gagal memuat halaman: ' + err.message, 'error')
         })
       }
     } catch (err) {
       console.error('[router] render error:', err)
+      window.api?.system?.log?.('error', 'render:' + page, { message: err.message, stack: err.stack })
+      if (window.toast) toast('Gagal memuat halaman: ' + err.message, 'error')
       const area = document.getElementById('content-area')
       if (area) area.innerHTML =
         '<div class="empty-s"><div class="ei"><i class="bi bi-exclamation-triangle"></i></div>' +
-        '<h3>Terjadi Kesalahan</h3><p>' + esc(err.message) + '</p></div>'
+        '<h3>Terjadi Kesalahan</h3><p>' + esc(err.message) + '</p>' +
+        '<button class="btn btn-d btn-sm mt8" onclick="window.api.system.openExternal(window._logPath||\'\')" style="margin-top:8px">' +
+        '<i class="bi bi-journal-text"></i> Buka Log File</button></div>'
     }
   }
 
@@ -173,6 +179,9 @@
   } else {
     bootstrap()
   }
+
+  // Cache log path untuk error page
+  window.api?.system?.getLogPath?.().then(p => { window._logPath = p }).catch(() => {})
 
   console.log('[router] loaded')
 })()
