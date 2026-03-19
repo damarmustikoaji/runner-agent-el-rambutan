@@ -228,6 +228,39 @@ class DeviceManager extends EventEmitter {
    * Ambil info lengkap device: OS version, manufacturer, SDK, screen size
    */
   async getDeviceInfo(serial) {
+    // ── iOS Simulator ─────────────────────────────────────────
+    if (_isIosSim(serial)) {
+      const device = this.devices.find(d => d.serial === serial)
+      // Resolusi berdasarkan model — iOS Simulator pakai point space bukan pixel
+      const name = device?.model || ''
+      let screenWidth = 390, screenHeight = 844  // iPhone 14/15/16 default
+
+      if (name.includes('Pro Max') || name.includes('Plus')) { screenWidth = 430; screenHeight = 932 }
+      else if (name.includes('17 Pro') || name.includes('16 Pro')) { screenWidth = 393; screenHeight = 852 }
+      else if (name.includes('SE'))    { screenWidth = 375; screenHeight = 667 }
+      else if (name.includes('mini'))  { screenWidth = 375; screenHeight = 812 }
+      else if (name.includes('Air') && name.includes('iPhone')) { screenWidth = 393; screenHeight = 852 }
+      else if (name.includes('iPad Pro 13')) { screenWidth = 1032; screenHeight = 1376 }
+      else if (name.includes('iPad Pro 11')) { screenWidth = 834;  screenHeight = 1210 }
+      else if (name.includes('iPad Air 13')) { screenWidth = 1024; screenHeight = 1366 }
+      else if (name.includes('iPad Air 11')) { screenWidth = 820;  screenHeight = 1180 }
+      else if (name.includes('iPad mini'))   { screenWidth = 744;  screenHeight = 1133 }
+      else if (name.includes('iPad'))        { screenWidth = 810;  screenHeight = 1080 }
+
+      return {
+        serial,
+        model:          name || 'iPhone Simulator',
+        manufacturer:   'Apple',
+        platform:       'ios',
+        iosVersion:     device?.iosVersion || '',
+        type:           'ios-simulator',
+        screenWidth,
+        screenHeight,
+        online:         true,
+      }
+    }
+
+    // ── Android via ADB ───────────────────────────────────────
     const props = [
       ['ro.product.manufacturer', 'manufacturer'],
       ['ro.product.model',        'model'],
