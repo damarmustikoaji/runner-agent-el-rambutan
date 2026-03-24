@@ -121,6 +121,8 @@ jobs:
     name: Publish GitHub Release
     # ← MIGRATION POINT (GitLab): runner bisa Linux biasa (tidak perlu macOS)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # wajib untuk buat GitHub Release & upload assets
     needs: build-dmg
 
     # Hanya jalan saat push tag (bukan manual trigger)
