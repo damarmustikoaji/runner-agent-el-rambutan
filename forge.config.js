@@ -43,16 +43,8 @@ module.exports = {
         name: 'MustLab',
         // Icon untuk file DMG itu sendiri (yang muncul di Finder saat di-mount)
         icon: path.join(__dirname, 'src/renderer/assets/icons/icon.icns'),
-        // Ukuran & posisi icon di dalam window DMG
         iconSize: 80,
-        contents: [
-          { x: 180, y: 170, type: 'file',   path: path.join(__dirname, 'out', 'MustLab-darwin-x64', 'MustLab.app') },
-          { x: 480, y: 170, type: 'link',   path: '/Applications' },
-        ],
-        // Ukuran window DMG
-        window: {
-          size: { width: 660, height: 400 }
-        },
+        window: { size: { width: 660, height: 400 } },
       }
     },
     {
