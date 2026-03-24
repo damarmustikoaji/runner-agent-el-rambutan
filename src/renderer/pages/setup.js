@@ -3,9 +3,9 @@ window.PageSetup = (() => {
   'use strict'
 
   const STEPS = [
-    { key: 'adb',     title: 'ADB (Android Debug Bridge)', desc: 'Di-bundle di app, tinggal ekstrak ke ~/.mustlab/adb/' },
-    { key: 'java',    title: 'Java Runtime (JRE 17)',       desc: 'Download Temurin OpenJDK headless ~80MB → ~/.mustlab/java/' },
-    { key: 'maestro', title: 'Maestro CLI',                 desc: 'Download dari GitHub releases → ~/.mustlab/bin/' },
+    { key: 'adb',     title: 'ADB (Android Debug Bridge)', desc: 'Dibutuhkan untuk komunikasi dengan Android device & emulator.' },
+    { key: 'java',    title: 'Java Runtime (JRE 17)',       desc: 'Runtime untuk menjalankan Maestro. Download otomatis ~80MB.' },
+    { key: 'maestro', title: 'Maestro CLI',                 desc: 'Test runner utama MustLab. Download otomatis dari internet.' },
   ]
 
   let _depsStatus = {}
@@ -30,13 +30,8 @@ window.PageSetup = (() => {
         <div style="width:64px;height:64px;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
           <img src="./assets/logo.png" alt="MustLab" style="width:64px;height:64px;object-fit:contain">
         </div>
-        <div style="font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:5px">Selamat Datang di MustLab</div>
-        <div class="sm muted" style="line-height:1.65">Klik <strong>Mulai Setup</strong> untuk menyiapkan semua dependensi secara otomatis.</div>
-      </div>
-
-      <div class="info-box mb12">
-        <div class="ib-ic"><i class="bi bi-folder2"></i></div>
-        <p>Semua file diinstall ke <code class="mono xs" style="background:rgba(59,126,237,.1);padding:1px 4px;border-radius:3px">~/.mustlab/</code> — tidak mengubah system PATH atau menginstall ke system directory.</p>
+        <div style="font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:6px">Just test it.</div>
+        <div class="sm muted" style="line-height:1.65">Setup seminimal mungkin, kurangin coding — dan siap testing.</div>
       </div>
 
       <div id="setup-steps" class="mb12">
@@ -230,7 +225,7 @@ window.PageSetup = (() => {
                 <div><span style="color:#3fb950">~</span> brew install python@3.11</div>
                 <div style="margin-top:4px"><span style="color:#8b949e"># 4. Install idb client</span></div>
                 <div><span style="color:#3fb950">~</span> brew install pipx && pipx ensurepath</div>
-                <div><span style="color:#3fb950">~</span> pipx install fb-idb --python /usr/local/bin/python3.11</div>
+                <div><span style="color:#3fb950">~</span> pipx install fb-idb --python $(which python3.11)</div>
                 <div style="margin-top:4px"><span style="color:#8b949e"># 5. Verifikasi</span></div>
                 <div><span style="color:#3fb950">~</span> idb list-targets</div>
               </div>
@@ -276,24 +271,38 @@ window.PageSetup = (() => {
   }
 
   // ── Version Check ──────────────────────────────────────────
-  const CURRENT_VERSION = '1.0.0'
-  const VERSION_CHECK_URL = 'https://mpcfbb0f4ae675349bd5.free.beeceptor.com/check'
+  const GITHUB_API_LATEST = 'https://api.github.com/repos/damarmustikoaji/murbei/releases/latest'
 
   async function checkVersion() {
     try {
-      const res  = await fetch(VERSION_CHECK_URL, { signal: AbortSignal.timeout(8000) })
+      const currentVersion = await window.api.system.getAppVersion().catch(() => '0.0.0')
+      const res = await fetch(GITHUB_API_LATEST, {
+        headers: { Accept: 'application/vnd.github+json' },
+        signal: AbortSignal.timeout(8000)
+      })
+      // 404 = belum ada release, abaikan saja tanpa error
+      if (res.status === 404) return
       if (!res.ok) return
-      const data = await res.json()
 
-      const latest = data.version || ''
-      if (!latest || latest === CURRENT_VERSION) return
+      const data        = await res.json()
+      const latest      = (data.tag_name || '').replace(/^v/, '')
+      const note        = data.name || 'Versi terbaru tersedia'
+      const date        = data.published_at ? data.published_at.slice(0, 10) : ''
+      const body        = data.body || ''   // release notes dari GitHub
+      const downloadUrl = data.assets?.[0]?.browser_download_url || ''
+
+      if (!latest || latest === currentVersion) return
+
+      // Tentukan level dari semver
+      const [cMaj, cMin] = currentVersion.split('.').map(Number)
+      const [lMaj, lMin] = latest.split('.').map(Number)
+      const level = lMaj > cMaj ? 'major' : lMin > cMin ? 'minor' : 'minor'
 
       const levelCfg = {
-        critical: { bg:'#fee2e2', border:'#dc2626', icon:'bi-exclamation-octagon-fill',   color:'#dc2626', label:'🚨 Update Kritis — Perlu diupdate segera!' },
-        major:    { bg:'#fff7ed', border:'#f97316', icon:'bi-exclamation-triangle-fill',  color:'#ea580c', label:'⬆️ Update Major — Sangat disarankan' },
-        minor:    { bg:'#f0f6ff', border:'#3b7eed', icon:'bi-info-circle-fill',           color:'#2563eb', label:'ℹ️ Update Minor Tersedia' },
+        major: { bg:'#fff7ed', border:'#f97316', icon:'bi-exclamation-triangle-fill', color:'#ea580c', label:'⬆️ Update Major — Sangat disarankan' },
+        minor: { bg:'#f0f6ff', border:'#3b7eed', icon:'bi-info-circle-fill',          color:'#2563eb', label:'ℹ️ Update Minor Tersedia' },
       }
-      const cfg = levelCfg[data.level] || levelCfg.minor
+      const cfg = levelCfg[level] || levelCfg.minor
 
       if (document.getElementById('version-banner')) return
       const stepsEl = document.getElementById('setup-steps')
@@ -310,15 +319,25 @@ window.PageSetup = (() => {
           <div style="font-weight:700;font-size:13px;color:${cfg.color};margin-bottom:3px">
             ${cfg.label}
           </div>
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px">
-            ${esc(data.note || 'Versi terbaru tersedia')}
-          </div>
-          <div style="font-size:10px;color:var(--text3)">
-            Versi kamu: <code style="font-family:monospace;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px">${CURRENT_VERSION}</code>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:3px">${esc(note)}</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:6px">
+            Versi kamu: <code style="font-family:monospace;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px">${esc(currentVersion)}</code>
             &nbsp;→&nbsp;
             Terbaru: <code style="font-family:monospace;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px">${esc(latest)}</code>
-            &nbsp;·&nbsp; ${esc(data.date || '')}
+            ${date ? `&nbsp;·&nbsp; ${esc(date)}` : ''}
           </div>
+          ${body ? `
+          <div style="font-size:10px;color:var(--text3);background:rgba(0,0,0,.04);
+                      border-radius:5px;padding:6px 8px;margin-bottom:8px;
+                      white-space:pre-wrap;line-height:1.5;max-height:80px;overflow-y:auto">
+            ${esc(body)}
+          </div>` : ''}
+          ${downloadUrl ? `
+          <button onclick="window.api.system.openExternal('${downloadUrl}')"
+            style="background:${cfg.color};color:#fff;border:none;border-radius:5px;
+                   padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600">
+            <i class="bi bi-download"></i> Download v${esc(latest)}
+          </button>` : ''}
         </div>
         <button onclick="document.getElementById('version-banner').remove()"
           style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;
@@ -461,6 +480,18 @@ window.PageSetup = (() => {
           word-break:break-all;opacity:.85">${esc(foundPath)}</code>`
       : esc(step.desc)
 
+    // Saat error, tampilkan hint dan tombol coba lagi
+    const errorHint = status === 'error' ? `
+      <div style="margin-top:6px;font-size:10px;color:var(--red);line-height:1.5">
+        ${msg || 'Instalasi gagal.'} Pastikan koneksi internet aktif, lalu coba lagi.
+      </div>
+      <div style="margin-top:6px">
+        <button class="btn btn-sm" style="background:var(--red);color:#fff;border:none;font-size:10px"
+          onclick="PageSetup.startInstallStep('${step.key}')">
+          <i class="bi bi-arrow-repeat"></i> Coba Lagi
+        </button>
+      </div>` : ''
+
     return `
     <div id="setup-step-${step.key}" style="display:flex;gap:10px;padding:11px 13px;border-radius:9px;border:1px solid ${border[status]};background:${bg[status]};margin-bottom:7px;transition:all .2s">
       <div style="width:30px;height:30px;border-radius:7px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:16px;color:${colors[status]};flex-shrink:0;${status==='active'?'animation:spin .8s linear infinite':''}">
@@ -470,6 +501,7 @@ window.PageSetup = (() => {
         <div class="fw6 sm">${esc(step.title)}</div>
         <div class="xs muted" style="line-height:1.6;word-break:break-word">${descHtml}</div>
         ${status==='active'?`<div class="pbar mt6"><div class="pbar-fill" id="pbar-${step.key}" style="width:${pct}%"></div></div>`:''}
+        ${errorHint}
       </div>
       <div class="xs fw6" style="color:${colors[status]};flex-shrink:0">${labels[status]}</div>
     </div>`
