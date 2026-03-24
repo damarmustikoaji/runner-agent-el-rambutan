@@ -1,6 +1,6 @@
 {
   "name": "mustlab",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MustLab for everyone. Android & iOS & Maybe Web, testing no code needed.",
   "main": "main.js",
   "scripts": {
