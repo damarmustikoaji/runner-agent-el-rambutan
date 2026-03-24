@@ -3,7 +3,7 @@ window.PageSettings = (() => {
   'use strict'
 
   const CURRENT_VERSION   = '1.0.0'
-  const VERSION_CHECK_URL = 'https://mpcfbb0f4ae675349bd5.free.beeceptor.com/check'
+  const GITHUB_API_LATEST = 'https://api.github.com/repos/damarmustikoaji/murbei/releases/latest'
 
   async function render() {
     const content = document.getElementById('content-area')
@@ -481,16 +481,33 @@ window.PageSettings = (() => {
     }
   }
 
+  // Tentukan level update berdasarkan semver (major/minor/patch)
+  function _updateLevel(current, latest) {
+    const [cMaj, cMin] = (current || '0.0.0').split('.').map(Number)
+    const [lMaj, lMin] = (latest  || '0.0.0').split('.').map(Number)
+    if (lMaj > cMaj) return 'major'
+    if (lMin > cMin) return 'minor'
+    return 'minor'
+  }
+
   async function checkUpdate() {
     const btn    = document.getElementById('update-btn')
     const result = document.getElementById('update-result')
     const version = await window.api.system.getAppVersion().catch(() => CURRENT_VERSION)
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-arrow-repeat" style="animation:spin .7s linear infinite"></i> Memeriksa...' }
     try {
-      const res  = await fetch(VERSION_CHECK_URL, { signal: AbortSignal.timeout(10000) })
+      // GitHub Releases API — returns latest published release
+      const res  = await fetch(GITHUB_API_LATEST, {
+        headers: { Accept: 'application/vnd.github+json' },
+        signal: AbortSignal.timeout(10000)
+      })
       if (!res.ok) throw new Error('HTTP ' + res.status)
-      const data = await res.json()
-      const latest = data.version || ''
+      const data   = await res.json()
+      // tag_name format: "v1.0.1" → strip prefix 'v'
+      const latest = (data.tag_name || '').replace(/^v/, '')
+      const note   = data.name || 'Versi terbaru tersedia'
+      const date   = data.published_at ? data.published_at.slice(0, 10) : ''
+
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cek Update' }
       if (!latest || latest === version) {
         if (result) result.innerHTML = `
@@ -501,18 +518,18 @@ window.PageSettings = (() => {
           </div>`
         return
       }
-      const lv = data.level || 'minor'
-      const colors  = { critical:'#dc2626', major:'#ea580c', minor:'#2563eb' }
-      const bgs     = { critical:'#fee2e2', major:'#fff7ed', minor:'#f0f6ff' }
-      const borders = { critical:'#dc2626', major:'#f97316', minor:'#3b7eed' }
-      const labels  = { critical:'🚨 Update Kritis', major:'⬆️ Update Major', minor:'ℹ️ Update Minor' }
+      const lv = _updateLevel(version, latest)
+      const colors  = { major:'#ea580c', minor:'#2563eb' }
+      const bgs     = { major:'#fff7ed', minor:'#f0f6ff' }
+      const borders = { major:'#f97316', minor:'#3b7eed' }
+      const labels  = { major:'⬆️ Update Major', minor:'ℹ️ Update Tersedia' }
       if (result) result.innerHTML = `
         <div style="margin-top:10px;padding:12px;background:${bgs[lv]||bgs.minor};
           border:1px solid ${borders[lv]||borders.minor};border-radius:8px">
           <div style="font-size:12px;font-weight:700;color:${colors[lv]||colors.minor};margin-bottom:4px">${labels[lv]||labels.minor}</div>
-          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">${data.note||'Versi terbaru tersedia'}</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">${note}</div>
           <div style="font-size:10px;color:var(--text3);margin-bottom:10px">
-            v${version} → <b>v${latest}</b>${data.date ? ' · ' + data.date : ''}
+            v${version} → <b>v${latest}</b>${date ? ' · ' + date : ''}
           </div>
           <button class="btn btn-p btn-sm" onclick="navigate('setup')">
             <i class="bi bi-lightning-charge-fill"></i> Update via Setup Wizard

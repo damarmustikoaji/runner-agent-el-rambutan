@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/renderer/assets/icons/icon.png" width="80" alt="MustLab"/>
+  <img src="https://github.com/damarmustikoaji/murbei/blob/master/src/renderer/assets/logo.png" width="80" alt="MustLab"/>
   <h1>MustLab</h1>
   <p>Mobile test automation for QA teams — no coding required</p>
 
@@ -61,9 +61,8 @@ MustLab adalah Electron app untuk QA non-teknis yang ingin menjalankan automatio
 ### Development
 
 ```bash
-# Clone repo (sesuaikan dengan URL GitLab internal)
-git clone https://gitlab.kantor.com/GRUP/runner-agent-elc4.git
-cd runner-agent-elc4
+git clone https://github.com/damarmustikoaji/murbei.git
+cd murbei
 
 # Install dependencies (otomatis rebuild native module better-sqlite3)
 npm install
@@ -112,40 +111,50 @@ atau via System Settings → Privacy & Security → Open Anyway.
 
 ## Release & Distribusi
 
-### Otomatis via GitLab CI/CD
-
-Pipeline sudah dikonfigurasi di [`.gitlab-ci.yml`](.gitlab-ci.yml). Pipeline berjalan saat:
-- Push ke branch `main` → build + upload ke Package Registry
-- Push tag `vX.X.X` → build + upload + buat GitLab Release
-
-**Prasyarat:** GitLab Runner self-hosted di macOS dengan tag `macos` sudah terdaftar.
+### Proses Release (step by step)
 
 ```bash
-# Cara release versi baru:
-npm version patch    # 1.0.0 → 1.0.1  (bugfix)
-npm version minor    # 1.0.0 → 1.1.0  (fitur baru)
-npm version major    # 1.0.0 → 2.0.0  (breaking change)
+# 1. Pastikan di branch master dan tidak ada uncommitted changes
+git status
 
-git push && git push --tags
-# Pipeline otomatis: build → upload → release
+# 2. Bump versi — pilih salah satu:
+npm version patch    # bugfix:  1.0.0 → 1.0.1
+npm version minor    # fitur:   1.0.0 → 1.1.0
+npm version major    # breaking: 1.0.0 → 2.0.0
+# Otomatis: update package.json + commit + buat git tag vX.X.X
+
+# 3. Push commit + tag sekaligus
+git push origin master --follow-tags
 ```
 
-Download URL setelah release:
+GitHub Actions otomatis berjalan → build DMG di macOS runner → publish ke GitHub Releases.
+
+Pantau progress di: `https://github.com/damarmustikoaji/murbei/actions`
+
+Download DMG setelah release:
 ```
-https://gitlab.kantor.com/api/v4/projects/PROJECT_ID/packages/generic/mustlab/VERSION/MustLab-VERSION-mac.dmg
+https://github.com/damarmustikoaji/murbei/releases/latest
 ```
 
-### Manual (tanpa CI/CD)
+atau per versi spesifik:
+```
+https://github.com/damarmustikoaji/murbei/releases/download/vX.X.X/MustLab-X.X.X.dmg
+```
+
+### Cek Update dari dalam App
+
+Fitur **Cek Update** di Settings memanggil GitHub Releases API:
+```
+GET https://api.github.com/repos/damarmustikoaji/murbei/releases/latest
+```
+App membandingkan versi saat ini (`package.json`) dengan `tag_name` release terbaru. Tidak butuh token — endpoint publik, gratis.
+
+### Manual Build (tanpa CI/CD)
 
 ```bash
-# 1. Build lokal
+# Build lokal
 npm run make
-
-# 2. Upload ke GitLab Package Registry
-export GITLAB_TOKEN="glpat-xxxx"
-export GITLAB_PROJECT_ID="123"
-export GITLAB_URL="https://gitlab.kantor.com"
-bash scripts/upload-release.sh
+# Output: out/make/MustLab.dmg
 ```
 
 ---
@@ -223,8 +232,10 @@ runner-agent-elc4/
 │   ├── bin/                     # Bundled binaries (ADB)
 │   └── scripts/                 # Helper scripts
 ├── scripts/
-│   └── upload-release.sh        # Manual upload build ke GitLab Package Registry
-├── .gitlab-ci.yml               # CI/CD pipeline (build + release)
+│   └── upload-release.sh        # Manual upload build (opsional, tanpa CI/CD)
+├── .github/
+│   └── workflows/
+│       └── release.yml          # GitHub Actions — build DMG + publish Release
 ├── main.js                      # Electron entry point
 ├── preload.js                   # contextBridge — expose IPC ke renderer secara aman
 ├── forge.config.js              # Electron Forge build config
@@ -447,7 +458,7 @@ No Appium. No WebDriverAgent. No Docker. Hanya Maestro CLI + idb untuk iOS.
 
 ## Contributing
 
-Project ini dikelola di GitLab internal. Alur kerja:
+Alur kerja:
 
 1. Buat branch dari `main`: `git checkout -b feature/nama-fitur` atau `fix/nama-bug`
 2. Commit dengan prefix konvensional:
@@ -459,13 +470,16 @@ Project ini dikelola di GitLab internal. Alur kerja:
 3. Push dan buat **Merge Request** ke `main`
 4. Minta review dari minimal 1 orang sebelum merge
 
-### Bump versi
+### Bump versi & release
 
 ```bash
 npm version patch   # bugfix   → 1.0.0 → 1.0.1
 npm version minor   # fitur    → 1.0.0 → 1.1.0
 npm version major   # breaking → 1.0.0 → 2.0.0
-# Otomatis update package.json dan buat git tag
+# Otomatis: update package.json + commit + buat git tag
+
+git push origin master --follow-tags
+# --follow-tags: push commit sekaligus tag → trigger GitHub Actions build
 ```
 
 ---

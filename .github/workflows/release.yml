@@ -1,0 +1,165 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# MustLab — Build & Release Pipeline
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# TRIGGER:
+#   Push tag  → build DMG + publish GitHub Release (download link aktif)
+#   Manual    → build DMG + upload sebagai artifact (tanpa Release)
+#
+# CARA PAKAI:
+#   git tag v1.2.0 && git push origin v1.2.0
+#
+# MIGRASI KE GITLAB / S3:
+#   Cari komentar bertanda "← MIGRATION POINT" untuk bagian yang perlu diganti.
+#   Inti logika build (job: build-dmg) tidak perlu diubah sama sekali.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Build & Release DMG
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'         # contoh: v1.0.0, v1.2.3-beta
+  workflow_dispatch:     # trigger manual dari GitHub UI (untuk test pipeline)
+    inputs:
+      version_override:
+        description: 'Override versi (opsional, contoh: 1.2.0-rc1)'
+        required: false
+        default: ''
+
+env:
+  NODE_VERSION: '20'
+  APP_NAME: 'MustLab'
+
+# ───────────────────────────────────────────────────────────────────────────────
+# JOB 1: BUILD
+# Compile Electron app menjadi DMG di macOS runner.
+# Output: file DMG tersimpan sebagai GitHub Actions artifact.
+# ───────────────────────────────────────────────────────────────────────────────
+jobs:
+  build-dmg:
+    name: Build macOS DMG
+    # ← MIGRATION POINT (GitLab): ganti dengan `tags: [macos]` di self-hosted runner
+    runs-on: macos-latest
+
+    outputs:
+      version:  ${{ steps.meta.outputs.version }}
+      dmg_name: ${{ steps.meta.outputs.dmg_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # Resolusi versi: dari tag (v1.2.0 → 1.2.0) atau dari input manual
+      - name: Resolve version & artifact name
+        id: meta
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"          # strip prefix 'v'
+          elif [[ -n "${{ github.event.inputs.version_override }}" ]]; then
+            VERSION="${{ github.event.inputs.version_override }}"
+          else
+            # Fallback: pakai commit SHA pendek untuk manual trigger tanpa input
+            VERSION="0.0.0-$(git rev-parse --short HEAD)"
+          fi
+
+          DMG_NAME="${{ env.APP_NAME }}-${VERSION}.dmg"
+
+          echo "version=$VERSION"   >> $GITHUB_OUTPUT
+          echo "dmg_name=$DMG_NAME" >> $GITHUB_OUTPUT
+          echo "Building: $DMG_NAME"
+
+      - name: Install dependencies
+        run: npm ci
+        # postinstall hook otomatis menjalankan electron-rebuild untuk better-sqlite3
+
+      - name: Build DMG
+        run: npm run make
+        env:
+          NODE_ENV: production
+
+      - name: Locate & rename DMG
+        id: artifact
+        run: |
+          # Electron Forge menaruh DMG di out/make/ dengan nama bervariasi (termasuk arch)
+          DMG_SRC=$(find out/make -name "*.dmg" | head -1)
+
+          if [[ -z "$DMG_SRC" ]]; then
+            echo "ERROR: DMG tidak ditemukan di out/make/"
+            ls -la out/make/ || true
+            exit 1
+          fi
+
+          cp "$DMG_SRC" "${{ steps.meta.outputs.dmg_name }}"
+          echo "Artifact siap: ${{ steps.meta.outputs.dmg_name }}"
+          ls -lh "${{ steps.meta.outputs.dmg_name }}"
+
+      # Simpan DMG sebagai artifact — dipakai oleh job release
+      # ← MIGRATION POINT (GitLab): gunakan `artifacts: paths:` di job definition
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.dmg_name }}
+          path: ${{ steps.meta.outputs.dmg_name }}
+          retention-days: 3
+
+# ───────────────────────────────────────────────────────────────────────────────
+# JOB 2: RELEASE
+# Ambil DMG dari artifact, publish ke GitHub Releases.
+# Job ini yang paling mudah diganti saat migrasi ke GitLab / S3.
+# ───────────────────────────────────────────────────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    # ← MIGRATION POINT (GitLab): runner bisa Linux biasa (tidak perlu macOS)
+    runs-on: ubuntu-latest
+    needs: build-dmg
+
+    # Hanya jalan saat push tag (bukan manual trigger)
+    if: github.ref_type == 'tag'
+
+    steps:
+      - name: Download DMG from artifact
+        # ← MIGRATION POINT (GitLab): gunakan `needs: build-dmg` + artifact path
+        # ← MIGRATION POINT (S3):     ganti dengan `aws s3 cp s3://bucket/...`
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-dmg.outputs.dmg_name }}
+
+      - name: Verify DMG
+        run: |
+          ls -lh "${{ needs.build-dmg.outputs.dmg_name }}"
+          echo "SHA256: $(shasum -a 256 '${{ needs.build-dmg.outputs.dmg_name }}')"
+
+      # ── DELIVERY TARGET ────────────────────────────────────────────────────
+      # Saat ini: GitHub Releases (download link publik/privat sesuai repo visibility)
+      #
+      # Migrasi ke GitLab Generic Package Registry:
+      #   curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+      #        --upload-file "$DMG_NAME" \
+      #        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/mustlab/$VERSION/$DMG_NAME"
+      #
+      # Migrasi ke S3:
+      #   aws s3 cp "$DMG_NAME" "s3://$BUCKET/releases/$VERSION/$DMG_NAME" --acl private
+      #   aws cloudfront create-invalidation --distribution-id $CF_DIST_ID --paths "/*"
+      # ──────────────────────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ env.APP_NAME }} v${{ needs.build-dmg.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          files: ${{ needs.build-dmg.outputs.dmg_name }}
+          generate_release_notes: true   # auto-generate changelog dari commit
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-beta → prerelease
+        env:
+          # ← MIGRATION POINT (GitLab): ganti dengan CI_JOB_TOKEN atau GITLAB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
