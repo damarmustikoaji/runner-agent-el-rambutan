@@ -111,50 +111,138 @@ atau via System Settings → Privacy & Security → Open Anyway.
 
 ## Release & Distribusi
 
-### Proses Release (step by step)
+### Kapan harus release?
+
+| Jenis perubahan | Contoh | Perintah |
+|---|---|---|
+| **Bugfix** | Fix crash, fix tampilan salah | `npm version patch` → 1.0.0 → **1.0.1** |
+| **Fitur baru** | Tambah halaman, tambah fitur | `npm version minor` → 1.0.0 → **1.1.0** |
+| **Breaking change** | Hapus fitur lama, ubah struktur data | `npm version major` → 1.0.0 → **2.0.0** |
+
+---
+
+### Proses Release — Step by Step
+
+#### Langkah 1 — Pastikan kode siap
 
 ```bash
-# 1. Pastikan di branch master dan tidak ada uncommitted changes
+# Cek apakah ada file yang belum di-commit
 git status
+# Harus output: "nothing to commit, working tree clean"
+# Kalau ada file yang belum commit, selesaikan dulu sebelum lanjut
+```
 
-# 2. Bump versi — pilih salah satu:
-npm version patch    # bugfix:  1.0.0 → 1.0.1
-npm version minor    # fitur:   1.0.0 → 1.1.0
-npm version major    # breaking: 1.0.0 → 2.0.0
-# Otomatis: update package.json + commit + buat git tag vX.X.X
+#### Langkah 2 — Pastikan di branch master dan up to date
 
-# 3. Push commit + tag sekaligus
+```bash
+git checkout master
+git pull origin master
+```
+
+#### Langkah 3 — Bump versi
+
+```bash
+# Pilih salah satu sesuai jenis perubahan:
+npm version patch    # 1.0.0 → 1.0.1  (bugfix)
+npm version minor    # 1.0.0 → 1.1.0  (fitur baru)
+npm version major    # 1.0.0 → 2.0.0  (breaking change)
+```
+
+Perintah ini otomatis melakukan 3 hal sekaligus:
+- Update versi di `package.json`
+- Buat git commit dengan pesan `"1.0.1"` (atau versi baru)
+- Buat git tag `v1.0.1`
+
+Verifikasi hasilnya:
+```bash
+git log --oneline -3
+# Output contoh:
+# a1b2c3d 1.0.1          ← commit baru dari npm version
+# e4f5g6h feat: tambah fitur X
+# ...
+
+git tag
+# Output contoh:
+# v1.0.0
+# v1.0.1   ← tag baru
+```
+
+#### Langkah 4 — Push ke GitHub (trigger build otomatis)
+
+```bash
 git push origin master --follow-tags
+# --follow-tags = push commit master sekaligus push tag v1.0.1
+# Tag inilah yang men-trigger GitHub Actions untuk build & release
 ```
 
-GitHub Actions otomatis berjalan → build DMG di macOS runner → publish ke GitHub Releases.
+#### Langkah 5 — Pantau proses build
 
-Pantau progress di: `https://github.com/damarmustikoaji/murbei/actions`
+Buka: https://github.com/damarmustikoaji/murbei/actions
 
-Download DMG setelah release:
+Akan terlihat workflow **"Build & Release DMG"** berjalan. Ada 2 job:
+1. **Build macOS DMG** (~1-2 menit) — compile app menjadi file `.dmg`
+2. **Publish GitHub Release** (~30 detik) — upload DMG ke halaman Releases
+
+Total waktu: sekitar **1-3 menit**.
+
+#### Langkah 6 — Verifikasi release
+
+Setelah workflow selesai (semua centang hijau), buka:
 ```
-https://github.com/damarmustikoaji/murbei/releases/latest
+https://github.com/damarmustikoaji/murbei/releases
 ```
 
-atau per versi spesifik:
+Akan ada release baru dengan file `MustLab-1.0.1.dmg` siap didownload.
+
+Link download permanen per versi:
 ```
-https://github.com/damarmustikoaji/murbei/releases/download/vX.X.X/MustLab-X.X.X.dmg
+https://github.com/damarmustikoaji/murbei/releases/download/v1.0.1/MustLab-1.0.1.dmg
 ```
+
+---
+
+### Jika ada yang salah saat release
+
+**Salah tulis versi / ingin batalkan tag:**
+```bash
+# Hapus tag lokal
+git tag -d v1.0.1
+
+# Hapus tag di GitHub
+git push origin --delete v1.0.1
+
+# Kembalikan versi di package.json ke sebelumnya
+npm version 1.0.0 --no-git-tag-version
+git add package.json
+git commit -m "revert: batalkan versi 1.0.1"
+git push origin master
+```
+
+**Build gagal di GitHub Actions:**
+- Buka tab Actions → klik workflow yang gagal → lihat log error
+- Perbaiki kode, commit, push
+- Buat tag ulang dari awal (langkah 3)
+
+---
 
 ### Cek Update dari dalam App
 
-Fitur **Cek Update** di Settings memanggil GitHub Releases API:
+Fitur **Cek Update** di Settings → otomatis memanggil:
 ```
 GET https://api.github.com/repos/damarmustikoaji/murbei/releases/latest
 ```
-App membandingkan versi saat ini (`package.json`) dengan `tag_name` release terbaru. Tidak butuh token — endpoint publik, gratis.
+App membandingkan versi saat ini dengan release terbaru di GitHub. Jika ada yang lebih baru, muncul notifikasi dengan tombol **Download DMG** langsung.
+
+Tidak butuh token — endpoint publik dan gratis.
+
+---
 
 ### Manual Build (tanpa CI/CD)
 
+Jika ingin build di lokal tanpa push ke GitHub:
 ```bash
-# Build lokal
 npm run make
-# Output: out/make/MustLab.dmg
+# Output: out/make/MustLab.dmg  (sekitar 100-200MB)
 ```
 
 ---

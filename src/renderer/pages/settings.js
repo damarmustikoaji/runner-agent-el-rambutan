@@ -501,14 +501,27 @@ window.PageSettings = (() => {
         headers: { Accept: 'application/vnd.github+json' },
         signal: AbortSignal.timeout(10000)
       })
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const data   = await res.json()
-      // tag_name format: "v1.0.1" → strip prefix 'v'
-      const latest = (data.tag_name || '').replace(/^v/, '')
-      const note   = data.name || 'Versi terbaru tersedia'
-      const date   = data.published_at ? data.published_at.slice(0, 10) : ''
-
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cek Update' }
+
+      // 404 = belum ada release yang dipublish sama sekali
+      if (res.status === 404) {
+        if (result) result.innerHTML = `
+          <div style="margin-top:10px;padding:8px 12px;background:var(--surface2);
+            border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--text3)">
+            <i class="bi bi-info-circle"></i> Belum ada release tersedia.
+          </div>`
+        return
+      }
+
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+
+      const data       = await res.json()
+      // tag_name format: "v1.0.1" → strip prefix 'v'
+      const latest     = (data.tag_name || '').replace(/^v/, '')
+      const note       = data.name || 'Versi terbaru tersedia'
+      const date       = data.published_at ? data.published_at.slice(0, 10) : ''
+      const downloadUrl = data.assets?.[0]?.browser_download_url || ''
+
       if (!latest || latest === version) {
         if (result) result.innerHTML = `
           <div style="margin-top:10px;padding:8px 12px;background:var(--green-bg);
@@ -531,9 +544,16 @@ window.PageSettings = (() => {
           <div style="font-size:10px;color:var(--text3);margin-bottom:10px">
             v${version} → <b>v${latest}</b>${date ? ' · ' + date : ''}
           </div>
-          <button class="btn btn-p btn-sm" onclick="navigate('setup')">
-            <i class="bi bi-lightning-charge-fill"></i> Update via Setup Wizard
-          </button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${downloadUrl ? `
+            <button class="btn btn-p btn-sm"
+              onclick="window.api.system.openExternal('${downloadUrl}')">
+              <i class="bi bi-download"></i> Download DMG
+            </button>` : ''}
+            <button class="btn btn-d btn-sm" onclick="navigate('setup')">
+              <i class="bi bi-lightning-charge-fill"></i> Setup Wizard
+            </button>
+          </div>
         </div>`
     } catch (err) {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Cek Update' }
